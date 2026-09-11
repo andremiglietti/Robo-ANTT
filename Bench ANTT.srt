@@ -1,0 +1,2189 @@
+1
+00:00:00,000 --> 00:00:03,600
+-Tudo bem? Bom dia. -Bom dia, Antônio.
+
+2
+00:00:03,620 --> 00:00:05,360
+-Tudo bem? -Tudo bem? Prazer aí.
+
+3
+00:00:05,380 --> 00:00:08,360
+-Tudo bom, Zanete. Como é que tá?
+-Tudo bem, vocês?
+
+4
+00:00:08,380 --> 00:00:11,540
+-Fala, Bartô.
+-O Rodrigão tá cuidando bem de você, cara?
+
+5
+00:00:11,560 --> 00:00:13,692
+Tá, tá cuidando bem.
+Não dá pra não cuidar.
+
+6
+00:00:13,716 --> 00:00:15,032
+Tem que cuidar, hein, meu.
+
+7
+00:00:15,040 --> 00:00:18,000
+Tem que cuidar. Vou puxar a orelha.
+Se não tiver, você já me fala aí, meu.
+
+8
+00:00:18,020 --> 00:00:22,160
+Não, tá tudo bem, graças a Deus.
+Tá ajudando bastante a turma aí.
+
+9
+00:00:22,180 --> 00:00:24,220
+-Boa. -E vocês aí? Tudo tranquilo?
+
+10
+00:00:24,240 --> 00:00:28,200
+Tudo tranquilo. E aí, né, Guilherme,
+Zanete, obrigado pela atenção, cara.
+
+11
+00:00:28,220 --> 00:00:30,913
+Eu queria pedir aí o
+apoio ao Rodrigo, né,
+
+12
+00:00:30,937 --> 00:00:33,772
+que aqui, né, a Jéssica,
+o André, a Natália,
+
+13
+00:00:33,780 --> 00:00:36,720
+que são os nossos especialistas, vão
+acompanhar vocês aí no entendimento,
+
+14
+00:00:36,740 --> 00:00:40,700
+porque a gente tá com uma dificuldade
+muito grande em ingerir as multas, né,
+
+15
+00:00:40,720 --> 00:00:45,780
+as notificações. E assim, todo time
+tem feito aí um trabalho hercúleo, cara,
+
+16
+00:00:45,800 --> 00:00:51,620
+pra encontrar formas e caminhos.
+E, pô, eu falei, "Rodrigo, me conta aí
+
+17
+00:00:51,640 --> 00:00:57,140
+o que vocês estão fazendo." Daí ele deu
+a dica que vocês estão com uma mecânica
+
+18
+00:00:57,160 --> 00:01:02,520
+bem interessante, né, cara, então...
+-Isso. Eu vou... -Espero que vocês nos ajudem.
+
+19
+00:01:02,540 --> 00:01:04,500
+Não, acho que sim, acho
+que conseguimos nos ajudar.
+
+20
+00:01:04,519 --> 00:01:07,360
+A gente também bateu bastante
+cabeça, tá, Alberto, no começo.
+
+21
+00:01:07,380 --> 00:01:12,720
+É... cara, chegava multa física, aí
+o site falava de uma quantidade
+
+22
+00:01:12,740 --> 00:01:16,200
+de multas diferente, uma
+coisa não batia com a outra.
+
+23
+00:01:16,220 --> 00:01:18,576
+É... e aí a gente ficou
+pensando aqui, meu Deus,
+
+24
+00:01:18,600 --> 00:01:20,772
+como que a gente vai
+fazer esse negócio, né?
+
+25
+00:01:20,780 --> 00:01:25,400
+E aí o Guilherme aqui, que é o
+nosso especialista aqui da área,
+
+26
+00:01:25,420 --> 00:01:29,476
+aí que tem ajudado muito
+aqui a gente. Inclusive, tá de
+
+27
+00:01:29,496 --> 00:01:31,860
+saída aí, hoje é o último
+dia dele aqui na companhia.
+
+28
+00:01:31,880 --> 00:01:33,980
+-Olha, cara. -É...
+
+29
+00:01:34,000 --> 00:01:37,920
+Ele nos ajudou aqui a desenvolver um...
+vou chamar de robô, tá, Guilherme?
+
+30
+00:01:37,940 --> 00:01:41,200
+Aí depois você explica
+tecnicamente aí o que é exatamente.
+
+31
+00:01:41,220 --> 00:01:44,020
+Mas vou usar o termo
+"robô" aqui por enquanto.
+
+32
+00:01:44,040 --> 00:01:49,340
+Descobriu um site, Alberto, onde
+a NTT publica as multas todas,
+
+33
+00:01:49,360 --> 00:01:54,060
+que a gente conseguia vincular, né,
+fazer um proque aqui de uma coisa
+
+34
+00:01:54,080 --> 00:01:56,475
+com a nossa base para
+saber de onde esse caminhão
+
+35
+00:01:56,495 --> 00:01:58,060
+saiu, né, qual que era a
+origem desse caminhão.
+
+36
+00:01:58,080 --> 00:02:02,200
+Porque quando você pega lá
+naquele dashboard que a NTT colocou,
+
+37
+00:02:02,220 --> 00:02:04,800
+você não conseguia vincular
+nada com coisa nenhuma, né?
+
+38
+00:02:04,820 --> 00:02:08,479
+Ficava perdido o negócio. Não sei se
+essa é uma das dores de vocês também.
+
+39
+00:02:08,500 --> 00:02:11,140
+-Sim.
+-É... e aí esse site que a gente achou,
+
+40
+00:02:11,160 --> 00:02:14,720
+a gente conseguiu conectar aqui
+com o robôzinho, é uma base pública,
+
+41
+00:02:14,740 --> 00:02:17,300
+então a gente extrai
+informação de lá em massa.
+
+42
+00:02:17,320 --> 00:02:21,180
+E aí a gente consegue conectar com
+a nossa base de dados internos aqui
+
+43
+00:02:21,200 --> 00:02:26,100
+para saber qual viagem realmente
+é e se, de fato, tinha carregado...
+
+44
+00:02:26,120 --> 00:02:31,680
+tinha sido feito abaixo do
+valor do frete mínimo ou não, né?
+
+45
+00:02:31,700 --> 00:02:35,520
+E aí saber também a
+diferença de valor de frete, etc.
+
+46
+00:02:35,540 --> 00:02:39,380
+Então vou deixar o Guilherme explicar
+um pouco mais tecnicamente aqui.
+
+47
+00:02:39,400 --> 00:02:41,820
+É, Guilherme, fica à vontade aí.
+
+48
+00:02:41,840 --> 00:02:44,440
+Vocês fiquem à vontade também
+para interromper aí, turma, tá?
+
+49
+00:02:44,460 --> 00:02:50,140
+Jéssica, André, Natália e Felipe aí
+podem interromper a vontade aí também.
+
+50
+00:02:51,420 --> 00:02:53,560
+Querem esperar o Rodrigo
+ou podemos começar já?
+
+51
+00:02:53,580 --> 00:02:56,580
+Bom, eu acho que o Rodrigo não entra
+aqui, ele está numa outra aqui de RF,
+
+52
+00:02:56,600 --> 00:02:59,800
+não vai conseguir participar, eu
+falei que a gente ia conduzir aqui.
+
+53
+00:02:59,820 --> 00:03:02,560
+-Ele falou que estava enrolado. -Ah.
+
+54
+00:03:02,580 --> 00:03:04,840
+Beleza, deixa eu compartilhar a tela aqui.
+
+55
+00:03:10,820 --> 00:03:14,320
+O Guilherme, inclusive, pediu autorização
+para fazer no computador pessoal dele
+
+56
+00:03:14,340 --> 00:03:17,760
+porque não estava rodando o modelo,
+não estava rodando o da empresa.
+
+57
+00:03:17,780 --> 00:03:20,568
+Então, não sei, Guilherme,
+você conseguiu transferir de
+
+58
+00:03:20,588 --> 00:03:24,000
+um local para o outro aí para
+conseguir apresentar aqui?
+
+59
+00:03:24,020 --> 00:03:26,900
+Consegui sim, fiz uma apresentação aqui.
+
+60
+00:03:26,920 --> 00:03:29,100
+-Bom, legal.
+-Vou ficar um pouco melhor aqui.
+
+61
+00:03:29,120 --> 00:03:32,260
+Beleza, gente, então o
+que a gente fez aqui, tá?
+
+62
+00:03:32,280 --> 00:03:35,700
+Como o Zanetti comentou,
+existiu uma plataforma do Cifama.
+
+63
+00:03:35,720 --> 00:03:37,260
+Deixa eu até abrir aqui.
+
+64
+00:03:38,340 --> 00:03:39,800
+Aqui.
+
+65
+00:03:43,780 --> 00:03:46,500
+-Vai ficar um pouco mais visual.
+-Ela não voltou ao ARG?
+
+66
+00:03:46,520 --> 00:03:50,680
+-Estava fora, né? Voltou.
+-Voltou, mas é outra coisa que estava fora.
+
+67
+00:03:50,700 --> 00:03:52,700
+-Eu fiz um outro... -Ah, tá.
+
+68
+00:03:54,180 --> 00:03:58,320
+É o que acontece, essa
+plataforma aqui da NTT, do Cifama,
+
+69
+00:03:58,340 --> 00:04:04,400
+ela contém todos os dados de multas, seja
+de frete mínima, seja de pedágio, enfim.
+
+70
+00:04:04,420 --> 00:04:08,580
+Tudo que você tem de multa
+que você toma, ele aparece aqui.
+
+71
+00:04:08,600 --> 00:04:09,480
+Qual que é a vantagem?
+
+72
+00:04:09,500 --> 00:04:12,880
+Ele aparece alguns meses de
+antecedência do processo físico.
+
+73
+00:04:12,900 --> 00:04:17,540
+Então, basicamente, umas duas semanas
+que você toma a infração ele já está aqui.
+
+74
+00:04:17,560 --> 00:04:20,660
+Então, se você foi autuado dia 4 agora,
+
+75
+00:04:20,680 --> 00:04:24,200
+semana que vem muito
+provavelmente já esteja aqui.
+
+76
+00:04:24,220 --> 00:04:25,660
+Nem sempre foi assim, tá?
+
+77
+00:04:25,680 --> 00:04:29,480
+Às vezes ele demorava um pouquinho
+mais, o site demorava um mês, etc.
+
+78
+00:04:29,500 --> 00:04:34,140
+Mas é melhor eu ter um mês de gap do que
+ter seis meses, como estava acontecendo.
+
+79
+00:04:34,160 --> 00:04:35,600
+Hoje já está um pouco melhor.
+
+80
+00:04:35,620 --> 00:04:39,560
+Eles regularizaram a situação
+interna dos sistemas deles e está ok.
+
+81
+00:04:39,580 --> 00:04:41,140
+Então, o que acontece?
+
+82
+00:04:41,160 --> 00:04:45,940
+Quando a gente faz o login naquele sistema
+e esse login você vincula o CNPJ do CEO,
+
+83
+00:04:45,960 --> 00:04:49,769
+do dono da empresa com o
+CNPJ, com o CNPJ matriz da
+
+84
+00:04:49,789 --> 00:04:53,000
+empresa e de quebra já
+puxa todos os CNPJ filhos.
+
+85
+00:04:53,980 --> 00:04:55,280
+Está quietado de login, né?
+
+86
+00:04:55,920 --> 00:05:00,520
+Existe uma aba em que você
+consegue consultar um processo.
+
+87
+00:05:00,540 --> 00:05:05,440
+Então, você seleciona qual que é o CNPJ
+que você está consultando embaixo de você.
+
+88
+00:05:05,460 --> 00:05:10,780
+Então, você tem o CNPJ mãe aqui, mas
+pode selecionar o CNPJ filhos embaixo.
+
+89
+00:05:10,800 --> 00:05:14,540
+E daí você fala, cara, qual que é
+exatamente o tipo de multa que eu quero?
+
+90
+00:05:14,560 --> 00:05:18,880
+Para o frete mínimo, a
+gente selecionava carga,
+
+91
+00:05:18,900 --> 00:05:21,100
+mas a gente poderia colocar
+para qualquer tipo de coisa,
+
+92
+00:05:21,120 --> 00:05:24,640
+seja vazão de pedágio, seja
+infraestrutura, alguma coisa do gênero.
+
+93
+00:05:24,660 --> 00:05:29,240
+Então, o robô como o Zana
+chama, ele selecionava carga.
+
+94
+00:05:29,260 --> 00:05:31,430
+Só que ao invés de ele
+pesquisar um número de
+
+95
+00:05:31,450 --> 00:05:33,960
+processos específicos,
+como fazia no passado,
+
+96
+00:05:33,980 --> 00:05:41,360
+ele falava, cara, me dá todas os
+processos que tem para esse CNPJ, certo?
+
+97
+00:05:41,380 --> 00:05:44,361
+E daí ele dava um
+tabelão e a gente sabe qual
+
+98
+00:05:44,381 --> 00:05:47,300
+que é o site da NTT, é
+um pouco demorado e tal.
+
+99
+00:05:47,320 --> 00:05:51,386
+E o robô, ele vem aqui na
+loupinha e ele clica e já baixa
+
+100
+00:05:51,406 --> 00:05:54,520
+o PDF do próprio alto e
+extrai informações daquele alto.
+
+101
+00:05:54,540 --> 00:05:57,080
+Só que a gente viu que isso
+estava demorando demais,
+
+102
+00:05:57,100 --> 00:06:02,320
+um robô fazendo, vasculhando vários
+altos, a motos tem múltiplos carregamentos,
+
+103
+00:06:02,340 --> 00:06:05,740
+a gente foi bem impactado pelo
+frete mínimo na questão de autoação,
+
+104
+00:06:05,760 --> 00:06:08,700
+quando entrou no comecinho,
+até a gente se ajeitar.
+
+105
+00:06:08,720 --> 00:06:10,680
+Então, o que a gente fez?
+
+106
+00:06:10,700 --> 00:06:13,926
+Ao invés de eu fazer
+um cara fazer essa
+
+107
+00:06:13,946 --> 00:06:17,140
+pesquisa, eu criei 20
+trabalhadores, workers, né?
+
+108
+00:06:17,160 --> 00:06:24,440
+Então, pensa que eu dupliquei 20
+guias e cada robô, ele pesquisa um CNPJ.
+
+109
+00:06:24,460 --> 00:06:28,020
+Só que ele compara, aí tem uma
+pastinha, a gente tem os altos,
+
+110
+00:06:28,040 --> 00:06:30,940
+e o Excel que a gente tem os
+altos que ele já analisa, já preenche,
+
+111
+00:06:30,960 --> 00:06:34,180
+ele vem ver, putz, mas esse alto
+aqui eu já tenho esse alto baixado,
+
+112
+00:06:34,200 --> 00:06:36,380
+eu vou para o próximo, vou para
+o próximo, vou para o próximo.
+
+113
+00:06:36,400 --> 00:06:39,500
+E ele vai varrendo o site da NTT inteiro,
+
+114
+00:06:39,520 --> 00:06:44,000
+baixando os PDFs, organizando
+e tabelando no Excel,
+
+115
+00:06:44,020 --> 00:06:46,816
+e daí fica muito mais
+fácil com o número de
+
+116
+00:06:46,836 --> 00:06:49,080
+MDFE, o número do
+Cioti e assim por diante,
+
+117
+00:06:49,100 --> 00:06:51,409
+fica muito mais fácil para
+a gente cruzar com a nossa
+
+118
+00:06:51,429 --> 00:06:53,600
+base de dados interna,
+que a gente já tem na mão.
+
+119
+00:06:53,620 --> 00:06:57,040
+Fazer um PROC-V, um
+PROC-X ali e mandar bala.
+
+120
+00:06:57,060 --> 00:06:59,240
+Só que esse foi o pulo
+do gato que a gente fez.
+
+121
+00:06:59,260 --> 00:07:02,240
+A gente conseguiu gerar esses workers,
+
+122
+00:07:02,260 --> 00:07:07,660
+então, pegar o cache dessa sessão que a
+gente tem, duplicar, triplicar qualquer...
+
+123
+00:07:07,680 --> 00:07:09,920
+Por isso que o Zanetti falou que
+eu fiz no meu computador pessoal,
+
+124
+00:07:09,940 --> 00:07:13,480
+que como eu queria ser bem
+rápido, eu fazia 20 de uma vez só.
+
+125
+00:07:13,500 --> 00:07:15,180
+E eles iam pesquisando em massa,
+
+126
+00:07:15,200 --> 00:07:18,240
+como se fosse uma colmeia
+coletando pólen mesmo de uma flor.
+
+127
+00:07:18,260 --> 00:07:22,420
+São várias abelinhas que vão lá e vão
+pegando o pólen e levando para colmeia.
+
+128
+00:07:22,440 --> 00:07:24,300
+Você ainda dá uma elogia aí, Guilherme.
+
+129
+00:07:25,400 --> 00:07:27,240
+Eu devia ter usado o
+caminhão com carga, né?
+
+130
+00:07:27,260 --> 00:07:29,440
+Ia ficar mais aderente, eu vou deixar.
+
+131
+00:07:31,380 --> 00:07:32,520
+E é o que ele faz?
+
+132
+00:07:32,540 --> 00:07:35,760
+Cara, ele entrega um Excel,
+ele vai falar "cara, esse PDF,
+
+133
+00:07:35,780 --> 00:07:38,380
+esse é o número do formulário,
+esse é o alto que você tomou,
+
+134
+00:07:38,400 --> 00:07:42,020
+essa é a data da infração,
+essa é a placa, esse é o eixo",
+
+135
+00:07:42,040 --> 00:07:44,460
+que daí eu tenho outras
+aplicações que analisam
+
+136
+00:07:44,480 --> 00:07:47,440
+para ver se a multa
+é válida ou não, né?
+
+137
+00:07:47,460 --> 00:07:49,720
+Qual que é o tipo do documento,
+o número do documento,
+
+138
+00:07:49,740 --> 00:07:53,460
+quando que foi emitido e o
+código e a descrição da infração.
+
+139
+00:07:53,480 --> 00:07:54,980
+Então, com todas essas informações,
+
+140
+00:07:55,000 --> 00:07:58,400
+ficou muito mais fácil a gente cruzar
+com o nosso banco de dados, tá?
+
+141
+00:07:59,300 --> 00:08:01,140
+O nosso banco de dados internos,
+
+142
+00:08:01,160 --> 00:08:04,762
+porque, cara, se tem a placa,
+tem a data da emissão e o número
+
+143
+00:08:04,782 --> 00:08:08,020
+do documento, é um select
+no banco de dados, ele já puxa
+
+144
+00:08:08,040 --> 00:08:10,980
+e a gente já faz a análise de
+forma totalmente automática, tá?
+
+145
+00:08:11,420 --> 00:08:12,860
+Um dos pontos que a gente estava sofrendo,
+
+146
+00:08:12,880 --> 00:08:17,780
+Turma, é que lá no dashboard que a NTT
+solta, ela fala, acho que a placa do caminhão
+
+147
+00:08:17,800 --> 00:08:21,380
+e ela tem uma informação da data da
+infração, só que você não sabe exatamente.
+
+148
+00:08:21,400 --> 00:08:23,260
+E as infrações, como estão sendo digitais,
+
+149
+00:08:23,280 --> 00:08:25,340
+elas estão vindo como
+Brasília, o local, né?
+
+150
+00:08:25,360 --> 00:08:28,220
+Então, você não conseguia
+relacionar com que viagem que era.
+
+151
+00:08:28,240 --> 00:08:30,900
+E aí, dessa forma aqui que
+o Guilherme está mostrando,
+
+152
+00:08:30,920 --> 00:08:33,620
+a gente consegue pegar o
+documento fiscal da viagem
+
+153
+00:08:33,640 --> 00:08:35,500
+para comparar com o
+nosso banco de dados aqui.
+
+154
+00:08:35,520 --> 00:08:38,039
+Então, ficou mais fácil de identificar
+
+155
+00:08:38,059 --> 00:08:41,340
+qual que de fato é a viagem
+que ele está sendo autuado aí, né?
+
+156
+00:08:41,720 --> 00:08:43,793
+Isso, o fluxograma ficou
+pequeno aqui, queria mostrar
+
+157
+00:08:43,813 --> 00:08:45,400
+para vocês, mas é basicamente
+isso que eu te mostrei,
+
+158
+00:08:45,420 --> 00:08:47,180
+mas com um detalhe um
+pouco mais técnico, tá?
+
+159
+00:08:51,080 --> 00:08:52,360
+A mesma apresentação, tá?
+
+160
+00:08:52,380 --> 00:08:55,960
+Só num MDzinho para mostrar quais são
+os efeitos, o que a gente teve de ganho.
+
+161
+00:08:56,240 --> 00:08:57,400
+E assim, qual que é o ponto?
+
+162
+00:08:57,420 --> 00:09:00,800
+Putz, Gui, é muito pesado rodar?
+
+163
+00:09:02,020 --> 00:09:06,600
+Sim, da primeira vez, porque da primeira
+vez ele vai mapear tudo de uma vez só.
+
+164
+00:09:07,000 --> 00:09:09,900
+Só que como a gente estava
+rodando semana contra semana,
+
+165
+00:09:10,140 --> 00:09:15,840
+por exemplo, eu rodei ontem, cara, ele
+capturou 162 documentos de 7 mil e poucos.
+
+166
+00:09:16,220 --> 00:09:19,860
+Então, você tendo uma
+constância agendando ele ali
+
+167
+00:09:19,880 --> 00:09:23,960
+para ele rodar de pouquinho em
+pouquinho, demora em média 15, 20 minutos
+
+168
+00:09:23,980 --> 00:09:25,740
+para ele extrair todas
+as informações da NTT.
+
+169
+00:09:26,140 --> 00:09:27,340
+Diga lá, Alberto.
+
+170
+00:09:27,360 --> 00:09:30,061
+Ô, Guilherme, aí você pegou
+num ponto que a gente estava até
+
+171
+00:09:30,081 --> 00:09:33,180
+conversando, né, Jess, que é a
+periodicidade desse levantamento.
+
+172
+00:09:33,980 --> 00:09:37,945
+Até por conta do CNPJ,
+do acesso do presidente e
+
+173
+00:09:37,965 --> 00:09:40,480
+tal, a gente tem uma
+preocupação com o governo.
+
+174
+00:09:40,500 --> 00:09:43,344
+Então, vamos falar
+assim, vocês rodam isso
+
+175
+00:09:43,364 --> 00:09:46,620
+semanalmente, então,
+isso demora 15 minutos,
+
+176
+00:09:47,260 --> 00:09:50,320
+e o primeiro, a primeira
+pernada aí que é a maior.
+
+177
+00:09:50,840 --> 00:09:51,580
+Exatamente.
+
+178
+00:09:51,600 --> 00:09:53,520
+E aí vocês entendem, né?
+
+179
+00:09:53,540 --> 00:09:56,540
+Ô, Rodrigão, hein?
+Ô, Rodrigão, não é desapura?
+
+180
+00:09:56,560 --> 00:09:58,900
+Fala, Alberto, joia, desculpa, joia.
+
+181
+00:09:59,300 --> 00:10:03,780
+Aí, então, quer dizer, mas para efeito
+de governança, né, Zanete e Guilherme,
+
+182
+00:10:03,800 --> 00:10:07,500
+essa uma semana era suficiente
+para vocês fazerem todas as análises,
+
+183
+00:10:07,520 --> 00:10:10,860
+vocês não precisavam entrar todo
+dia ou toda a hora, vamos dizer,
+
+184
+00:10:10,880 --> 00:10:14,060
+dia ou alguns dias da semana
+para fazer uma vez por semana,
+
+185
+00:10:14,080 --> 00:10:17,860
+esses 15 minutos, resolver o processo
+na gestão de vocês no dia a dia.
+
+186
+00:10:17,880 --> 00:10:20,580
+Isso, é porque demora
+15 minutos a extração, né?
+
+187
+00:10:20,600 --> 00:10:24,000
+Como o Excel, ele já vem
+montadinho, bonitinho.
+
+188
+00:10:24,020 --> 00:10:26,220
+Eu só jogo ele para uma pasta,
+
+189
+00:10:26,240 --> 00:10:28,380
+aí eu tenho outros scripts
+que já trabalham em cima dele,
+
+190
+00:10:28,400 --> 00:10:32,060
+e em meia hora eu já tenho um relatório
+completo do que aconteceu de multa ou não.
+
+191
+00:10:32,080 --> 00:10:35,052
+Evolução, quem que foi,
+para onde foi, se é devido,
+
+192
+00:10:35,072 --> 00:10:37,980
+se não é, se é do cliente
+X, se é do cliente Y.
+
+193
+00:10:38,000 --> 00:10:40,600
+Então, em meia hora, na semana,
+a gente mata tranquilamente.
+
+194
+00:10:41,400 --> 00:10:42,800
+Boa. Obrigado.
+
+195
+00:10:43,820 --> 00:10:46,560
+- Beleza? - Deixa eu aproveitar, Guilherme.
+
+196
+00:10:46,580 --> 00:10:50,460
+Desculpa, só para aproveitar o gancho ali.
+
+197
+00:10:50,480 --> 00:10:53,540
+Só confirmar algumas
+informações aqui com vocês.
+
+198
+00:10:53,560 --> 00:10:58,600
+Vocês fizeram então a adesão ao CIFAMA
+antes de começar a rodar esse processo.
+
+199
+00:10:58,620 --> 00:11:01,320
+- Isso, só para confirmar. - Isso.
+
+200
+00:11:01,340 --> 00:11:06,840
+Tá, e vocês acessam ali com
+o login CPF mesmo do CFO,
+
+201
+00:11:06,860 --> 00:11:12,020
+o diretor, enfim, de vocês
+representante legal ali com esse ponto.
+
+202
+00:11:12,040 --> 00:11:14,760
+Não precisa ser agora, pode
+ser que está ali de resistir,
+
+203
+00:11:14,780 --> 00:11:17,689
+mas se puder comentar depois
+um pouquinho de que cuidados
+
+204
+00:11:17,709 --> 00:11:20,300
+vocês tiveram ali, porque essa
+é uma das nossas preocupações,
+
+205
+00:11:20,320 --> 00:11:25,880
+a gente manter utilizando o CPF
+ali e tudo mais dentro de um robô.
+
+206
+00:11:25,900 --> 00:11:27,940
+Então, se depois quiser
+comentar um pouquinho ali,
+
+207
+00:11:27,960 --> 00:11:30,140
+é uma preocupação nossa
+que a gente tem também.
+
+208
+00:11:30,800 --> 00:11:32,800
+O que aconteceu?
+
+209
+00:11:32,820 --> 00:11:35,640
+Me passaram em
+confidência, o usuário e o
+
+210
+00:11:35,660 --> 00:11:38,360
+login, só que eu não
+deixei aberto no código.
+
+211
+00:11:38,380 --> 00:11:41,520
+O que eu fiz?
+Eu criei uma variável de ambiente,
+
+212
+00:11:41,540 --> 00:11:45,652
+eu criptografei o usuário,
+criptografei, tenho um
+
+213
+00:11:45,672 --> 00:11:49,260
+modelo de criptografia, mas
+enfim, cara, está mascarado.
+
+214
+00:11:49,280 --> 00:11:51,800
+Isso aí está mascarado, está
+em uma variável de ambiente,
+
+215
+00:11:51,820 --> 00:11:56,080
+está salvo, está governado pelo,
+tem a nossa governança da área de TI,
+
+216
+00:11:56,100 --> 00:11:58,120
+eu deletei da mente, eu
+apaguei a mensagem do Zanet,
+
+217
+00:11:58,140 --> 00:12:00,840
+então assim, cara, o robô
+ele preenche, preenche,
+
+218
+00:12:00,860 --> 00:12:02,960
+mas se você for tentar
+dar um CTRL+C, CTRL+V,
+
+219
+00:12:02,980 --> 00:12:05,840
+as próprias mecânicas de
+defesa do site já bloqueiam
+
+220
+00:12:05,860 --> 00:12:07,774
+e não tem como você ir
+lá no código e ver "ah, essa
+
+221
+00:12:07,794 --> 00:12:11,260
+é a senha de fulano, esse
+é o usuário de fulano", tá?
+
+222
+00:12:11,280 --> 00:12:14,420
+Então a gente salvou em uma
+variável de ambiente controlados.
+
+223
+00:12:14,440 --> 00:12:19,660
+Aqui é só uma coisa. Fez uma hipnose ali.
+
+224
+00:12:20,760 --> 00:12:22,880
+Entendi. Ótimo. Obrigada.
+
+225
+00:12:22,900 --> 00:12:26,000
+Beleza? Tem um ponto que
+a gente pegou no começo,
+
+226
+00:12:26,020 --> 00:12:28,760
+que assim, o site da
+NPT é bem estátua, tá?
+
+227
+00:12:28,780 --> 00:12:33,720
+Então essa demora de
+15, 20 minutos está ok,
+
+228
+00:12:33,740 --> 00:12:36,821
+mas a gente já viu picos,
+principalmente, em meio
+
+229
+00:12:36,841 --> 00:12:38,940
+de semana, em que está
+todo mundo tentando acessar,
+
+230
+00:12:38,960 --> 00:12:40,960
+talvez o portal esteja um
+pouco em manutenção,
+
+231
+00:12:40,980 --> 00:12:44,140
+está com sobrecarga, em que
+demore 40 minutos uma hora,
+
+232
+00:12:44,160 --> 00:12:46,040
+por isso que a gente
+roda até na sexta-feira, tá?
+
+233
+00:12:46,060 --> 00:12:51,040
+Porque, em teoria, pelo que a gente
+viu, é um pouco menos sobrecarga no site.
+
+234
+00:12:51,060 --> 00:12:57,440
+O script, quando ele fale, ele não
+acho alto, ele não interrompe tudo, tá?
+
+235
+00:12:57,460 --> 00:13:01,800
+Ele sempre vai para o próximo e
+se o site deu pau, deu alguma coisa,
+
+236
+00:13:01,820 --> 00:13:04,840
+caiu o CloudFair, alguma coisa,
+cara, ele salva o estado que ele está,
+
+237
+00:13:04,860 --> 00:13:08,800
+então ele tem um state of mind, em que ele
+retorna na próxima vez que ele for rodar.
+
+238
+00:13:08,820 --> 00:13:13,140
+Então tem um JSONzinho
+com o estado de todos os altos
+
+239
+00:13:13,160 --> 00:13:17,400
+e se ele achou, não achou, quando
+achou, se deu algum pau no site,
+
+240
+00:13:17,420 --> 00:13:20,760
+então ele tem um log disso e
+ele lê esse log antes de rodar,
+
+241
+00:13:20,780 --> 00:13:22,940
+até para saber se está
+tendo um erro de rede
+
+242
+00:13:22,960 --> 00:13:25,980
+ou se ele realmente
+não achou o alto, tá?
+
+243
+00:13:26,000 --> 00:13:31,060
+Então a gente fez algumas,
+alguns fallbacks ali para não...
+
+244
+00:13:31,080 --> 00:13:32,780
+A gente sabe como que é a site da NTT.
+
+245
+00:13:32,800 --> 00:13:33,940
+Volte meio, dá algum pau.
+
+246
+00:13:33,960 --> 00:13:35,900
+Então a gente colocou isso
+para a gente até ter um log
+
+247
+00:13:35,920 --> 00:13:37,800
+e uma restriabilidade
+do que está acontecendo.
+
+248
+00:13:39,060 --> 00:13:40,500
+Beleza?
+
+249
+00:13:40,520 --> 00:13:45,180
+Sofremos com isso aqui porque a gente
+tem tentado fazer esses acessos manualmente
+
+250
+00:13:45,200 --> 00:13:48,640
+e daí a pessoa vai lá tentando
+entrar, sai, vai lá tentando entrar, sai,
+
+251
+00:13:48,660 --> 00:13:50,663
+e isso toma um tempo
+gigantesco aqui da
+
+252
+00:13:50,687 --> 00:13:53,012
+pessoa que está tentando
+fazer essa operação.
+
+253
+00:13:53,020 --> 00:13:55,720
+Uhum. E assim, um ponto interessante,
+
+254
+00:13:55,740 --> 00:14:00,040
+o Zaneche comentou muito que
+é um robô, que ele vai, acessa e tal.
+
+255
+00:14:00,060 --> 00:14:03,280
+E não é, porque assim, como ele
+trabalha em nível do próprio JavaScript,
+
+256
+00:14:03,300 --> 00:14:05,709
+do HTML e da página, ele
+não precisa esperar todos os
+
+257
+00:14:05,729 --> 00:14:08,240
+elementos carregar, igual um
+ser humano fazer manualmente.
+
+258
+00:14:08,260 --> 00:14:12,280
+Cara, ele já identifica
+os links, clica, clica, né?
+
+259
+00:14:12,300 --> 00:14:15,220
+Mas ele simula um clique, né?
+Ele vai direto no elemento.
+
+260
+00:14:15,240 --> 00:14:16,680
+Ele já puxa abaixo do PDF.
+
+261
+00:14:16,700 --> 00:14:20,400
+Então isso tem um ganho também, tá?
+Comparado com um ser humano.
+
+262
+00:14:20,420 --> 00:14:22,860
+Mesmo que fosse um robô só rodando,
+
+263
+00:14:22,880 --> 00:14:26,020
+seria muito, infinitamente
+mais rápido que um ser humano.
+
+264
+00:14:28,840 --> 00:14:30,460
+Beleza?
+
+265
+00:14:30,480 --> 00:14:32,020
+Sam?
+
+266
+00:14:32,040 --> 00:14:35,800
+É, da minha parte era isso.
+Tem alguma pergunta mais?
+
+267
+00:14:37,660 --> 00:14:40,340
+Os meninos aqui entendem um pouquinho mais,
+
+268
+00:14:40,360 --> 00:14:44,500
+mas eu sou mais liga aqui, que
+tecnologia que vocês usaram aqui.
+
+269
+00:14:45,740 --> 00:14:50,000
+Scraptizão Python,
+tranquilo, com Playwright.
+
+270
+00:14:50,020 --> 00:14:52,660
+Com a Biblioteca Playwright, bem tranquilo.
+
+271
+00:14:54,120 --> 00:14:55,260
+Andresito.
+
+272
+00:15:07,660 --> 00:15:10,760
+Eu sou do time de operações,
+estou bem longe de TI,
+
+273
+00:15:10,780 --> 00:15:14,940
+mas aqui a gente tem
+uma questão de segurança,
+
+274
+00:15:14,960 --> 00:15:17,860
+com certos recursos, eu até
+conversei com o pessoal de TI antes.
+
+275
+00:15:17,880 --> 00:15:21,840
+Rodava localmente na máquina,
+a gente não configura uma OVPL,
+
+276
+00:15:21,860 --> 00:15:25,620
+não tem nada do que fazer, mas a
+gente tem uma questão de segurança,
+
+277
+00:15:25,640 --> 00:15:29,140
+a gente tem uma questão de segurança,
+a gente tem uma questão de segurança,
+
+278
+00:15:29,160 --> 00:15:32,040
+a gente tem uma questão de segurança,
+a gente tem uma questão de segurança,
+
+279
+00:15:32,060 --> 00:15:34,240
+a gente tem uma questão
+de segurança, a gente tem uma
+
+280
+00:15:34,260 --> 00:15:36,740
+questão de segurança, a gente
+tem uma questão de segurança,
+
+281
+00:15:36,760 --> 00:15:39,826
+uma OVPL, um VPS, uma
+coisa do gênero ali para
+
+282
+00:15:39,846 --> 00:15:42,100
+rodar, porque não era
+nada muito sensível,
+
+283
+00:15:42,120 --> 00:15:46,940
+e como tinha um certo
+clearance ali com o time de TI,
+
+284
+00:15:46,960 --> 00:15:50,700
+e era organizado, tudo bonitinho,
+tinha uma governança por trás dos dados,
+
+285
+00:15:50,720 --> 00:15:55,040
+não precisou colocar numa máquina virtual
+alguma coisa do gênero, rodava localmente.
+
+286
+00:16:06,760 --> 00:16:08,460
+Assim, é o fluxo de obtenção de dados.
+
+287
+00:16:08,480 --> 00:16:11,280
+Deixa eu ver se eu consigo
+abrir o MD dele aqui, peraí.
+
+288
+00:16:21,940 --> 00:16:22,940
+Isso.
+
+289
+00:16:36,760 --> 00:16:38,560
+Ah, aqui, agora vai ficar legal.
+
+290
+00:16:42,560 --> 00:16:43,560
+Vou dar um...
+
+291
+00:16:48,740 --> 00:16:49,740
+Aqui.
+
+292
+00:16:54,500 --> 00:16:56,700
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+293
+00:16:56,720 --> 00:16:59,080
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+294
+00:16:59,100 --> 00:17:00,740
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+295
+00:17:00,760 --> 00:17:02,880
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+296
+00:17:02,900 --> 00:17:04,720
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+297
+00:17:04,740 --> 00:17:06,560
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+298
+00:17:06,579 --> 00:17:08,060
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+299
+00:17:08,079 --> 00:17:09,560
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+300
+00:17:09,579 --> 00:17:11,079
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+301
+00:17:11,099 --> 00:17:12,660
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+302
+00:17:12,680 --> 00:17:14,480
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+303
+00:17:14,500 --> 00:17:16,579
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+304
+00:17:16,599 --> 00:17:18,500
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+305
+00:17:18,520 --> 00:17:20,500
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+306
+00:17:20,520 --> 00:17:22,520
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+307
+00:17:22,540 --> 00:17:24,540
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+308
+00:17:24,560 --> 00:17:26,560
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+309
+00:17:26,579 --> 00:17:28,580
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+310
+00:17:28,600 --> 00:17:30,600
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+311
+00:17:30,620 --> 00:17:32,620
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+312
+00:17:32,640 --> 00:17:37,640
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+313
+00:17:37,660 --> 00:17:39,660
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+314
+00:17:39,680 --> 00:17:41,680
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+315
+00:17:41,700 --> 00:17:43,700
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+316
+00:17:43,720 --> 00:17:45,720
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+317
+00:17:45,740 --> 00:17:47,740
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+318
+00:17:47,760 --> 00:17:49,760
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+319
+00:17:49,780 --> 00:17:51,780
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+320
+00:17:51,800 --> 00:17:53,800
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+321
+00:17:53,820 --> 00:17:55,820
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+322
+00:17:55,840 --> 00:17:57,840
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+323
+00:17:57,860 --> 00:17:59,860
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+324
+00:17:59,880 --> 00:18:01,880
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+325
+00:18:01,900 --> 00:18:03,900
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+326
+00:18:03,920 --> 00:18:05,920
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+327
+00:18:05,940 --> 00:18:07,940
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+328
+00:18:07,960 --> 00:18:09,960
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+329
+00:18:09,980 --> 00:18:11,980
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+330
+00:18:12,000 --> 00:18:14,000
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+331
+00:18:14,020 --> 00:18:16,020
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+332
+00:18:16,040 --> 00:18:18,040
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+333
+00:18:18,060 --> 00:18:20,060
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+334
+00:18:20,080 --> 00:18:22,080
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+335
+00:18:22,100 --> 00:18:24,100
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+336
+00:18:24,120 --> 00:18:26,120
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+337
+00:18:26,140 --> 00:18:28,140
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+338
+00:18:28,160 --> 00:18:30,160
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+339
+00:18:30,180 --> 00:18:32,180
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+340
+00:18:32,200 --> 00:18:34,200
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+341
+00:18:34,220 --> 00:18:36,220
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+342
+00:18:36,240 --> 00:18:38,240
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+343
+00:18:38,260 --> 00:18:40,260
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+344
+00:18:40,280 --> 00:18:42,280
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+345
+00:18:42,300 --> 00:18:44,300
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+346
+00:18:44,320 --> 00:18:46,320
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+347
+00:18:46,340 --> 00:18:48,340
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+348
+00:18:48,360 --> 00:18:50,360
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+349
+00:18:50,380 --> 00:18:52,380
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+350
+00:18:52,400 --> 00:18:54,400
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+351
+00:18:54,420 --> 00:18:56,420
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+352
+00:18:56,440 --> 00:18:58,440
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+353
+00:18:58,460 --> 00:19:00,460
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+354
+00:19:00,480 --> 00:19:02,480
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+355
+00:19:02,500 --> 00:19:04,500
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+356
+00:19:04,520 --> 00:19:06,520
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+357
+00:19:06,540 --> 00:19:08,540
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+358
+00:19:08,560 --> 00:19:10,560
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+359
+00:19:10,580 --> 00:19:12,580
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+360
+00:19:12,600 --> 00:19:14,600
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+361
+00:19:14,620 --> 00:19:16,620
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+362
+00:19:16,640 --> 00:19:18,640
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+363
+00:19:18,660 --> 00:19:20,660
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+364
+00:19:20,680 --> 00:19:22,680
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+365
+00:19:22,700 --> 00:19:24,700
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+366
+00:19:24,720 --> 00:19:26,720
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+367
+00:19:26,740 --> 00:19:28,740
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+368
+00:19:28,760 --> 00:19:30,760
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+369
+00:19:30,780 --> 00:19:32,780
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+370
+00:19:32,800 --> 00:19:34,800
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+371
+00:19:34,820 --> 00:19:36,820
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+372
+00:19:36,840 --> 00:19:38,840
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+373
+00:19:38,860 --> 00:19:40,860
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+374
+00:19:40,880 --> 00:19:42,880
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+375
+00:19:42,900 --> 00:19:44,900
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+376
+00:19:44,920 --> 00:19:46,920
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+377
+00:19:46,940 --> 00:19:48,940
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+378
+00:19:48,960 --> 00:19:50,960
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+379
+00:19:50,980 --> 00:19:52,980
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+380
+00:19:53,000 --> 00:19:55,000
+Vou abrir por aqui mesmo,
+porque aqui está muito bugato.
+
+381
+00:19:55,020 --> 00:19:57,020
+O Guilherme mostrou
+para nós ali de consulta.
+
+382
+00:19:57,040 --> 00:20:00,040
+É a tela que o time da central
+está acessando hoje, né?
+
+383
+00:20:00,060 --> 00:20:02,060
+Só para confirmar.
+
+384
+00:20:02,080 --> 00:20:07,080
+O que ele mostrou ali dos prints do
+site da NTT é o mesmo que a gente acessa.
+
+385
+00:20:07,100 --> 00:20:09,100
+Tá, beleza.
+
+386
+00:20:09,120 --> 00:20:13,120
+Mas para confirmar essa info e
+também perguntar, Guilherme,
+
+387
+00:20:13,140 --> 00:20:15,988
+a gente identificou
+que há um período ali
+
+388
+00:20:16,012 --> 00:20:19,152
+que não estava aparecendo
+as multas para nós.
+
+389
+00:20:19,160 --> 00:20:24,160
+Multas emitidas em um determinado
+período não estavam aparecendo.
+
+390
+00:20:24,180 --> 00:20:27,180
+Vocês chegaram a pegar algo semelhante?
+
+391
+00:20:27,200 --> 00:20:31,200
+Chegou físico e não estava
+aparecendo no site da NTT para nós.
+
+392
+00:20:31,220 --> 00:20:34,220
+Isso não.
+
+393
+00:20:34,240 --> 00:20:38,240
+Tudo que chegou físico que a gente
+validou estava chegando no portal da NTT,
+
+394
+00:20:38,260 --> 00:20:41,460
+mas a gente percebeu que
+a NTT durante umas duas,
+
+395
+00:20:41,480 --> 00:20:44,280
+três semanas, ela ficou
+sem atualizar esse portal, tá?
+
+396
+00:20:44,300 --> 00:20:48,300
+Pode ser que vocês foram
+onerados por conta disso.
+
+397
+00:20:48,320 --> 00:20:51,320
+Foram as últimas três, Gui, mais ou menos,
+
+398
+00:20:51,340 --> 00:20:54,340
+duas, três semanas a partir
+da semana passada, foi isso?
+
+399
+00:20:54,360 --> 00:20:56,360
+É, foi ali por julho, na verdade.
+
+400
+00:20:56,380 --> 00:20:58,380
+Julho ou começo de agosto.
+
+401
+00:20:58,400 --> 00:21:01,400
+É bem o gap que a gente tem.
+
+402
+00:21:01,420 --> 00:21:06,420
+Isso foi final de maio, início de
+junho, julho ali que ficou sem.
+
+403
+00:21:06,440 --> 00:21:09,440
+Então provavelmente
+agora talvez seja atualizado.
+
+404
+00:21:09,460 --> 00:21:11,460
+Isso.
+
+405
+00:21:11,480 --> 00:21:14,480
+Inclusive a última leva de multa que
+chegou a gente confirmou isso, né?
+
+406
+00:21:14,500 --> 00:21:17,500
+Que se tinha alguma coisa faltando
+e não tinha nada faltando, né?
+
+407
+00:21:17,520 --> 00:21:20,520
+Acho que tinha uma multa que não estava...
+
+408
+00:21:20,540 --> 00:21:23,540
+Estava no site, mas a gente
+não tinha mapeado, né?
+
+409
+00:21:23,560 --> 00:21:25,560
+Acho que tinha um caso só ali.
+
+410
+00:21:25,580 --> 00:21:27,580
+Isso.
+
+411
+00:21:27,600 --> 00:21:29,600
+Beleza?
+
+412
+00:21:29,620 --> 00:21:31,620
+As multas físicas demoram
+muito para chegar, né?
+
+413
+00:21:31,640 --> 00:21:35,640
+A gente tem até percebido um delay grande
+de três, quatro meses de multas físicas.
+
+414
+00:21:35,660 --> 00:21:38,660
+Então chega coisa, até a última
+vez que chegou um bolo de multa,
+
+415
+00:21:38,680 --> 00:21:40,680
+a gente ficou assustado, a
+gente foi ver a toda multa
+
+416
+00:21:40,700 --> 00:21:42,700
+que a gente já tinha
+conhecimento lá de trás.
+
+417
+00:21:42,720 --> 00:21:45,720
+Então ela realmente tem
+um delay importante aí.
+
+418
+00:21:47,740 --> 00:21:50,740
+Temos umas mesmas dores.
+
+419
+00:21:50,760 --> 00:21:52,760
+Exato.
+
+420
+00:21:52,780 --> 00:21:55,780
+Quer comentar, Alberto?
+Me atropelei aqui, mas...
+
+421
+00:21:55,800 --> 00:22:00,820
+Queria falar que esse negócio aqui não
+quebrou um galho, quebrou uma árvore aqui, né?
+
+422
+00:22:00,840 --> 00:22:03,840
+Então vai dar um adianto super bom, viu?
+
+423
+00:22:03,860 --> 00:22:06,860
+Guilherme, Zanetti aí, Rodrigão.
+
+424
+00:22:06,880 --> 00:22:08,880
+Acho que aqui ficou super claro.
+
+425
+00:22:08,900 --> 00:22:11,900
+Aí os técnicos, né, André,
+você e o time vão trabalhar,
+
+426
+00:22:11,920 --> 00:22:14,920
+mas acho que o caminho,
+a lógica, bem legal.
+
+427
+00:22:14,940 --> 00:22:17,248
+Nada que um milhão
+de toneladas para a gente
+
+428
+00:22:17,268 --> 00:22:19,960
+transportar, a gente não
+fecha a sua conta aqui.
+
+429
+00:22:19,980 --> 00:22:24,980
+Rodrigão, você sabe que
+só depende de você, cara.
+
+430
+00:22:26,000 --> 00:22:32,000
+É só você dar um frete
+druxulamente baixo que você faz, né?
+
+431
+00:22:32,020 --> 00:22:39,020
+Então, depois de conversa, você sabe
+que aqui tem jogo, tem bric, tem bric aqui.
+
+432
+00:22:39,040 --> 00:22:42,040
+Não, mas acho que aqui o
+negócio ficou bem legal, viu?
+
+433
+00:22:42,060 --> 00:22:45,060
+Pelo menos, bem bacana.
+
+434
+00:22:45,080 --> 00:22:47,080
+Beleza?
+
+435
+00:22:47,100 --> 00:22:49,100
+André, não sei se tem mais algum ponto.
+
+436
+00:22:49,120 --> 00:22:51,120
+Não apareceu no chat aqui para mim, tá?
+
+437
+00:22:51,140 --> 00:22:54,140
+Eu não sei se daqui a pouco a
+gente não está com alguma visão.
+
+438
+00:22:54,160 --> 00:22:56,160
+Por política da companhia,
+não pode mandar no chat,
+
+439
+00:22:56,180 --> 00:22:59,180
+mas eu mando por e-mail
+para vocês e daí é liberado.
+
+440
+00:22:59,200 --> 00:23:01,200
+Tá, então pode ser assim.
+
+441
+00:23:01,220 --> 00:23:05,220
+E, gente, se nós pudermos ajudar
+de alguma forma em algum processo
+
+442
+00:23:05,240 --> 00:23:08,240
+que a gente esteja bem, que
+seja válido aí para vocês, por favor,
+
+443
+00:23:08,260 --> 00:23:10,969
+mantenham, aproveitem
+essa porta que a gente
+
+444
+00:23:10,989 --> 00:23:13,280
+está super à disposição
+para trocar também, tá?
+
+445
+00:23:13,300 --> 00:23:15,350
+O nosso time aqui trabalha
+muito com o projeto,
+
+446
+00:23:15,370 --> 00:23:18,320
+melhoria contínua, temos
+algumas automações também.
+
+447
+00:23:18,340 --> 00:23:20,340
+Então, por favor, fiquem à vontade aí.
+
+448
+00:23:20,360 --> 00:23:23,360
+Se vocês veem alguma oportunidade,
+a gente está à disposição também.
+
+449
+00:23:23,380 --> 00:23:27,380
+Boa, excelente.
+A gente agradece a abertura aí também.
+
+450
+00:23:27,400 --> 00:23:29,400
+Tá mil, pessoal. Brigadão, viu?
+
+451
+00:23:29,420 --> 00:23:32,420
+Rodrigão, depois a gente
+coloca aquela cerveja lá.
+
+452
+00:23:32,440 --> 00:23:34,440
+Falou, gente.
+
+453
+00:23:34,460 --> 00:23:36,460
+Tchau.
+
+454
+00:23:36,480 --> 00:23:38,480
+-Falou, gente. -Tchau.
+
+455
+00:24:06,480 --> 00:24:08,480
+-Falou, gente. -Tchau.
+
+456
+00:24:36,480 --> 00:24:38,480
+-Tchau. -Tchau.
+
