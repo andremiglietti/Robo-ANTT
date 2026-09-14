@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel do Projeto — Robô ANTT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12181a;
+    --surface:#1b2325;
+    --surface-alt:#212b2e;
+    --border:#313d40;
+    --text:#e8e4da;
+    --text-muted:#8fa0a3;
+    --amber:#d9a441;
+    --teal:#4f8a8b;
+    --green:#6fa37a;
+    --red:#c4593f;
+    --font-head:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body:'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.5;
+    padding:32px 20px 60px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+
+  /* Header */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:24px;
+    border-bottom:1px solid var(--border);
+    padding-bottom:24px;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+  }
+  .title-block h1{
+    font-family:var(--font-head);
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+  .title-block p{
+    margin:0;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  .deadline{
+    font-family:var(--font-mono);
+    font-size:13px;
+    color:var(--text-muted);
+    text-align:right;
+  }
+  .deadline strong{
+    display:block;
+    font-size:22px;
+    color:var(--text);
+    font-family:var(--font-head);
+  }
+
+  /* Stamp */
+  .stamp{
+    position:relative;
+    display:inline-block;
+    border:3px solid var(--stamp-color, var(--green));
+    color:var(--stamp-color, var(--green));
+    font-family:var(--font-head);
+    font-weight:700;
+    font-size:15px;
+    padding:6px 16px;
+    border-radius:6px;
+    transform:rotate(-4deg);
+    letter-spacing:0.04em;
+    margin-top:8px;
+  }
+
+  /* Stat cards */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:14px;
+    margin-bottom:28px;
+  }
+  .stat-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:18px;
+  }
+  .stat-card .label{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-bottom:10px;
+  }
+  .stat-card .value{
+    font-family:var(--font-head);
+    font-size:34px;
+    font-weight:700;
+    line-height:1;
+  }
+  .stat-card .sub{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:8px;
+    font-family:var(--font-mono);
+  }
+  .bar-track{
+    height:6px;
+    border-radius:3px;
+    background:var(--surface-alt);
+    margin-top:12px;
+    overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;
+    border-radius:3px;
+    transition:width .4s ease;
+  }
+
+  /* Trend section */
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:20px;
+    margin-bottom:22px;
+  }
+  .panel h2{
+    font-family:var(--font-head);
+    font-size:16px;
+    margin:0 0 4px;
+  }
+  .panel .panel-sub{
+    color:var(--text-muted);
+    font-size:13px;
+    margin:0 0 16px;
+  }
+  .legend{
+    display:flex;
+    gap:18px;
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:10px;
+  }
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .empty-state{
+    color:var(--text-muted);
+    font-size:13px;
+    padding:24px 0;
+    text-align:center;
+    border:1px dashed var(--border);
+    border-radius:6px;
+  }
+
+  /* Tabs */
+  .tabs{display:flex;gap:4px;margin-bottom:16px;}
+  .tab-btn{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    padding:9px 16px;
+    border-radius:6px;
+    font-family:var(--font-body);
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    background:var(--surface-alt);
+    color:var(--text);
+    border-color:var(--amber);
+  }
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+
+  /* Checklist */
+  .bloco{
+    border:1px solid var(--border);
+    border-radius:8px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .bloco-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:13px 16px;
+    background:var(--surface-alt);
+    cursor:pointer;
+    user-select:none;
+  }
+  .bloco-head .name{
+    font-family:var(--font-head);
+    font-size:14px;
+    font-weight:600;
+  }
+  .bloco-head .count{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--text-muted);
+  }
+  .bloco-items{
+    padding:4px 16px 10px;
+    display:none;
+  }
+  .bloco.open .bloco-items{display:block;}
+  .bloco.open .chevron{transform:rotate(90deg);}
+  .chevron{
+    display:inline-block;
+    transition:transform .15s ease;
+    color:var(--text-muted);
+    margin-right:8px;
+  }
+  .item-row{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:9px 0;
+    border-top:1px solid var(--border);
+  }
+  .item-row:first-child{border-top:none;}
+  .item-row input[type=checkbox]{
+    margin-top:3px;
+    width:16px;height:16px;
+    accent-color:var(--amber);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .item-id{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--teal);
+    flex-shrink:0;
+    width:44px;
+    padding-top:1px;
+  }
+  .item-label{font-size:13.5px;}
+  .item-label.done{color:var(--text-muted);text-decoration:line-through;}
+
+  /* Cronograma */
+  .day-row{
+    display:grid;
+    grid-template-columns:70px 90px 1fr 140px;
+    align-items:center;
+    gap:12px;
+    padding:11px 14px;
+    border-bottom:1px solid var(--border);
+  }
+  .day-row:last-child{border-bottom:none;}
+  .day-num{
+    font-family:var(--font-mono);
+    color:var(--text-muted);
+    font-size:12px;
+  }
+  .day-date{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--text-muted);
+  }
+  .day-label{font-size:13.5px;}
+  .status-btn{
+    font-family:var(--font-body);
+    font-size:12px;
+    font-weight:600;
+    border:none;
+    border-radius:5px;
+    padding:6px 10px;
+    cursor:pointer;
+    text-align:center;
+    width:100%;
+  }
+
+  /* Footer actions */
+  .actions{
+    display:flex;
+    gap:10px;
+    margin-top:22px;
+    flex-wrap:wrap;
+  }
+  .btn{
+    font-family:var(--font-body);
+    font-size:13px;
+    font-weight:600;
+    border-radius:6px;
+    padding:11px 18px;
+    cursor:pointer;
+    border:1px solid var(--border);
+  }
+  .btn-primary{
+    background:var(--amber);
+    color:#1a1305;
+    border-color:var(--amber);
+  }
+  .btn-ghost{
+    background:transparent;
+    color:var(--text-muted);
+  }
+  .status-msg{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:8px;
+    min-height:16px;
+  }
+
+  @media (max-width:600px){
+    .day-row{grid-template-columns:44px 66px 1fr;}
+    .day-row .status-btn{grid-column:1 / -1;width:auto;justify-self:start;margin-top:4px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>Robô ANTT — Painel de Progresso</h1>
+      <p>Acompanhamento do checklist de levantamento e do cronograma de execução</p>
+      <div class="stamp" id="stamp">CARREGANDO</div>
+    </div>
+    <div class="deadline">
+      Prazo de entrega
+      <strong id="deadline-date">30/09</strong>
+      <span id="days-left">—</span>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">Checklist de levantamento</div>
+      <div class="value" id="checklist-pct">—</div>
+      <div class="bar-track"><div class="bar-fill" id="checklist-bar" style="background:var(--amber);width:0%"></div></div>
+      <div class="sub" id="checklist-count">0 / 0 itens</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Execução do cronograma</div>
+      <div class="value" id="cron-pct">—</div>
+      <div class="bar-track"><div class="bar-fill" id="cron-bar" style="background:var(--teal);width:0%"></div></div>
+      <div class="sub" id="cron-count">0 / 13 dias</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Esperado para hoje (aderência)</div>
+      <div class="value" id="expected-pct">—</div>
+      <div class="bar-track"><div class="bar-fill" id="expected-bar" style="background:var(--text-muted);width:0%"></div></div>
+      <div class="sub" id="expected-sub">com base no cronograma</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Tendência</h2>
+    <p class="panel-sub">Registre um snapshot para acompanhar a evolução ao longo dos dias</p>
+    <div id="chart-area"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--amber)"></i> Checklist</span>
+      <span><i class="dot" style="background:var(--teal)"></i> Cronograma</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="checklist">Checklist</button>
+    <button class="tab-btn" data-tab="cronograma">Cronograma</button>
+  </div>
+
+  <div class="tab-content active" id="tab-checklist"></div>
+  <div class="tab-content" id="tab-cronograma">
+    <div class="panel" style="padding:0;overflow:hidden;" id="cron-list"></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-snapshot">Registrar progresso de hoje</button>
+    <button class="btn btn-ghost" id="btn-reset">Resetar dados</button>
+  </div>
+  <div class="status-msg" id="status-msg"></div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'antt-tracker-state-v1';
+
+const CHECKLIST = [
+  {bloco:"Bloco 1 — Login e Sessão", items:[
+    ["1.1","Confirmar qual é o portal exato usado hoje"],
+    ["1.2","Confirmar responsável pelo login manual e disponibilidade"],
+    ["1.3","Testar captura/reaproveitamento da sessão de login"],
+  ]},
+  {bloco:"Bloco 2 — Telas: prints e Inspecionar", items:[
+    ["2.1","Print da tela de login"],
+    ["2.2","Print da lista de CNPJs (matriz/filiais)"],
+    ["2.3","Print da tela de consulta de processos"],
+    ["2.4","Print da lista de resultados + paginação"],
+    ["2.5","Print da tela de detalhe do auto (download)"],
+    ["2.6.1","Inspecionar campo de CPF/CNPJ"],
+    ["2.6.2","Inspecionar campo de senha"],
+    ["2.6.3","Inspecionar botão de login"],
+    ["2.6.4","Inspecionar seletor de CNPJ"],
+    ["2.6.5","Inspecionar filtros de consulta"],
+    ["2.6.6","Inspecionar botão consultar/pesquisar"],
+    ["2.6.7","Inspecionar linha da tabela de resultados"],
+    ["2.6.8","Inspecionar controle de paginação"],
+    ["2.6.9","Inspecionar link de download do PDF"],
+  ]},
+  {bloco:"Bloco 3 — Documento (PDF do auto)", items:[
+    ["3.1","Conseguir 1 PDF real de auto de infração"],
+    ["3.2","PDF de cada tipo de multa (se houver variação)"],
+  ]},
+  {bloco:"Bloco 4 — Base de dados interna", items:[
+    ["4.1","Identificar onde ficam os dados de viagens/fretes"],
+    ["4.2","Exemplo de estrutura dos dados (colunas)"],
+    ["4.3","Definir formato do resultado final"],
+  ]},
+  {bloco:"Bloco 5 — Volume da operação", items:[
+    ["5.1","Quantidade de CNPJs (matriz + filiais)"],
+    ["5.2","Volume médio de multas por mês"],
+  ]},
+  {bloco:"Bloco 6 — Máquina local e SharePoint", items:[
+    ["6.1","Confirmar computador que vai rodar o robô"],
+    ["6.2","Confirmar OneDrive configurável com acesso ao SharePoint"],
+    ["6.3","Confirmar permissão de escrita na pasta do SharePoint"],
+    ["6.4","Checar exigência de aprovação de InfoSec"],
+    ["6.5","Definir ponto de contato do TI para suporte"],
+  ]},
+];
+
+const CRONOGRAMA = [
+  [1,"2026-09-14","Confirmar disponibilidade + TI + estruturar projeto"],
+  [2,"2026-09-15","Reunir prints das telas do portal"],
+  [3,"2026-09-16","Inspecionar login/CNPJ + teste de captura de sessão"],
+  [4,"2026-09-17","Inspecionar consulta/tabela/paginação + PDF de exemplo"],
+  [5,"2026-09-18","Inspecionar download + lógica de varredura multi-CNPJ"],
+  [6,"2026-09-21","Testar login real + captura de sessão no portal"],
+  [7,"2026-09-22","Testar varredura de CNPJs + paginação"],
+  [8,"2026-09-23","Download de PDFs + verificação de duplicidade"],
+  [9,"2026-09-24","Extração de campos do PDF"],
+  [10,"2026-09-25","Checkpoint/retentativa + teste ponta a ponta"],
+  [11,"2026-09-28","Cruzamento com base interna + gravação no SharePoint"],
+  [12,"2026-09-29","Teste final + atalho de execução + guia de uso"],
+  [13,"2026-09-30","Revisão geral e entrega"],
+];
+
+let state = null;
+
+function defaultState(){
+  const checklist = {};
+  CHECKLIST.forEach(b => b.items.forEach(([id]) => checklist[id] = false));
+  const cronograma = {};
+  CRONOGRAMA.forEach(([n]) => cronograma[n] = 'pending');
+  return { checklist, cronograma, history: [] };
+}
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      const base = defaultState();
+      state = {
+        checklist: Object.assign(base.checklist, parsed.checklist || {}),
+        cronograma: Object.assign(base.cronograma, parsed.cronograma || {}),
+        history: Array.isArray(parsed.history) ? parsed.history : []
+      };
+      return;
+    }
+  }catch(e){
+    // key doesn't exist yet or read failed — fall back to default
+  }
+  state = defaultState();
+}
+
+async function saveState(){
+  try{
+    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    if(!result){ showMsg('Não foi possível salvar agora. Tente novamente em instantes.'); }
+  }catch(e){
+    showMsg('Erro ao salvar: os dados podem não persistir nesta sessão.');
+  }
+}
+
+function showMsg(text){
+  const el = document.getElementById('status-msg');
+  el.textContent = text;
+  setTimeout(()=>{ if(el.textContent === text) el.textContent=''; }, 3500);
+}
+
+function fmtDate(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}`;
+}
+
+function checklistTotals(){
+  const ids = Object.keys(state.checklist);
+  const done = ids.filter(id => state.checklist[id]).length;
+  return {done, total: ids.length, pct: ids.length ? Math.round(done/ids.length*100) : 0};
+}
+
+function cronogramaTotals(){
+  const vals = Object.values(state.cronograma);
+  const score = vals.reduce((s,v)=> s + (v==='done'?1: v==='in_progress'?0.5:0), 0);
+  const doneCount = vals.filter(v=>v==='done').length;
+  return {done: doneCount, total: vals.length, pct: vals.length ? Math.round(score/vals.length*100) : 0};
+}
+
+function expectedPctForToday(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let passed = 0;
+  CRONOGRAMA.forEach(([n, dateStr]) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if(d <= today) passed++;
+  });
+  return Math.round(passed / CRONOGRAMA.length * 100);
+}
+
+function daysUntilDeadline(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const deadline = new Date('2026-09-30T00:00:00');
+  const diff = Math.round((deadline - today) / 86400000);
+  return diff;
+}
+
+function renderStats(){
+  const c = checklistTotals();
+  const cr = cronogramaTotals();
+  const exp = expectedPctForToday();
+
+  document.getElementById('checklist-pct').textContent = c.pct + '%';
+  document.getElementById('checklist-bar').style.width = c.pct + '%';
+  document.getElementById('checklist-count').textContent = `${c.done} / ${c.total} itens`;
+
+  document.getElementById('cron-pct').textContent = cr.pct + '%';
+  document.getElementById('cron-bar').style.width = cr.pct + '%';
+  document.getElementById('cron-count').textContent = `${cr.done} / ${cr.total} dias concluídos`;
+
+  document.getElementById('expected-pct').textContent = exp + '%';
+  document.getElementById('expected-bar').style.width = exp + '%';
+
+  const diff = cr.pct - exp;
+  const stamp = document.getElementById('stamp');
+  let color, text;
+  if(exp === 0 && cr.pct === 0){
+    color = 'var(--text-muted)'; text = 'AINDA NÃO INICIADO';
+  } else if(diff >= 5){
+    color = 'var(--green)'; text = 'ADIANTADO';
+  } else if(diff >= -10){
+    color = 'var(--amber)'; text = 'NO PRAZO';
+  } else {
+    color = 'var(--red)'; text = 'ATRASADO';
+  }
+  stamp.style.setProperty('--stamp-color', color);
+  stamp.textContent = text;
+
+  const daysLeft = daysUntilDeadline();
+  document.getElementById('days-left').textContent = daysLeft >= 0
+    ? `${daysLeft} dia(s) restante(s)`
+    : `prazo encerrado há ${Math.abs(daysLeft)} dia(s)`;
+}
+
+function renderChecklist(){
+  const container = document.getElementById('tab-checklist');
+  container.innerHTML = '';
+  CHECKLIST.forEach((bloco, idx) => {
+    const done = bloco.items.filter(([id]) => state.checklist[id]).length;
+    const div = document.createElement('div');
+    div.className = 'bloco' + (idx === 0 ? ' open' : '');
+    div.innerHTML = `
+      <div class="bloco-head">
+        <span class="name"><span class="chevron">▸</span>${bloco.bloco}</span>
+        <span class="count">${done}/${bloco.items.length}</span>
+      </div>
+      <div class="bloco-items">
+        ${bloco.items.map(([id,label]) => `
+          <div class="item-row">
+            <input type="checkbox" data-id="${id}" ${state.checklist[id] ? 'checked' : ''}>
+            <span class="item-id">${id}</span>
+            <span class="item-label ${state.checklist[id] ? 'done' : ''}">${label}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    div.querySelector('.bloco-head').addEventListener('click', () => div.classList.toggle('open'));
+    div.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('click', e => e.stopPropagation());
+      cb.addEventListener('change', async e => {
+        state.checklist[e.target.dataset.id] = e.target.checked;
+        await saveState();
+        renderAll();
+      });
+    });
+    container.appendChild(div);
+  });
+}
+
+const STATUS_CYCLE = ['pending','in_progress','done'];
+const STATUS_LABEL = {pending:'Pendente', in_progress:'Em andamento', done:'Concluído'};
+const STATUS_COLOR = {pending:'var(--surface-alt)', in_progress:'var(--amber)', done:'var(--green)'};
+const STATUS_TEXT_COLOR = {pending:'var(--text-muted)', in_progress:'#1a1305', done:'#0d1a0f'};
+
+function renderCronograma(){
+  const container = document.getElementById('cron-list');
+  container.innerHTML = CRONOGRAMA.map(([n, date, label]) => {
+    const status = state.cronograma[n];
+    return `
+      <div class="day-row">
+        <span class="day-num">DIA ${n}</span>
+        <span class="day-date">${fmtDate(date)}</span>
+        <span class="day-label">${label}</span>
+        <button class="status-btn" data-day="${n}" style="background:${STATUS_COLOR[status]};color:${STATUS_TEXT_COLOR[status]}">${STATUS_LABEL[status]}</button>
+      </div>
+    `;
+  }).join('');
+  container.querySelectorAll('.status-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const day = btn.dataset.day;
+      const cur = state.cronograma[day];
+      const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(cur) + 1) % STATUS_CYCLE.length];
+      state.cronograma[day] = next;
+      await saveState();
+      renderAll();
+    });
+  });
+}
+
+function renderChart(){
+  const area = document.getElementById('chart-area');
+  const history = state.history.slice().sort((a,b) => a.date.localeCompare(b.date));
+  if(history.length < 2){
+    area.innerHTML = `<div class="empty-state">Registre seu progresso ao longo dos dias (botão abaixo) para ver a tendência aqui.</div>`;
+    return;
+  }
+  const W = 880, H = 200, PAD = 30;
+  const xStep = (W - PAD*2) / (history.length - 1);
+  const scaleY = v => H - PAD - (v/100)*(H - PAD*2);
+  const pathFor = key => history.map((h,i) => `${i===0?'M':'L'} ${PAD + i*xStep} ${scaleY(h[key])}`).join(' ');
+
+  const gridLines = [0,25,50,75,100].map(v => `
+    <line x1="${PAD}" y1="${scaleY(v)}" x2="${W-PAD}" y2="${scaleY(v)}" stroke="var(--border)" stroke-width="1"/>
+    <text x="4" y="${scaleY(v)+4}" font-size="10" fill="var(--text-muted)" font-family="var(--font-mono)">${v}</text>
+  `).join('');
+
+  const labels = history.map((h,i) => `
+    <text x="${PAD + i*xStep}" y="${H-6}" font-size="10" fill="var(--text-muted)" text-anchor="middle" font-family="var(--font-mono)">${fmtDate(h.date)}</text>
+  `).join('');
+
+  const dotsChecklist = history.map((h,i) => `<circle cx="${PAD+i*xStep}" cy="${scaleY(h.checklistPct)}" r="3" fill="var(--amber)"/>`).join('');
+  const dotsCron = history.map((h,i) => `<circle cx="${PAD+i*xStep}" cy="${scaleY(h.cronogramaPct)}" r="3" fill="var(--teal)"/>`).join('');
+
+  area.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">
+      ${gridLines}
+      <path d="${pathFor('checklistPct')}" fill="none" stroke="var(--amber)" stroke-width="2"/>
+      <path d="${pathFor('cronogramaPct')}" fill="none" stroke="var(--teal)" stroke-width="2"/>
+      ${dotsChecklist}
+      ${dotsCron}
+      ${labels}
+    </svg>
+  `;
+}
+
+function renderAll(){
+  renderStats();
+  renderChecklist();
+  renderCronograma();
+  renderChart();
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('btn-snapshot').addEventListener('click', async () => {
+  const c = checklistTotals();
+  const cr = cronogramaTotals();
+  const todayIso = new Date().toISOString().slice(0,10);
+  const existingIdx = state.history.findIndex(h => h.date === todayIso);
+  const entry = {date: todayIso, checklistPct: c.pct, cronogramaPct: cr.pct};
+  if(existingIdx >= 0) state.history[existingIdx] = entry;
+  else state.history.push(entry);
+  await saveState();
+  renderAll();
+  showMsg('Progresso de hoje registrado.');
+});
+
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  if(!confirm('Isso vai apagar todo o progresso salvo (checklist, cronograma e histórico). Confirmar?')) return;
+  state = defaultState();
+  await saveState();
+  renderAll();
+  showMsg('Dados resetados.');
+});
+
+(async function init(){
+  await loadState();
+  renderAll();
+})();
+</script>
+</body>
+</html>

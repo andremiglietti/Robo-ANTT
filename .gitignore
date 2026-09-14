@@ -1,0 +1,15 @@
+# Sessão autenticada (cookies do representante legal) — nunca versionar
+data/sessao/*.json
+*.session.json
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Downloads de autos de infração e relatórios de saída — dados sensíveis/locais
+data/downloads/*
+data/output/*
+!data/downloads/.gitkeep
+!data/output/.gitkeep
