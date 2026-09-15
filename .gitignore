@@ -13,3 +13,10 @@ data/downloads/*
 data/output/*
 !data/downloads/.gitkeep
 !data/output/.gitkeep
+
+# PDFs de autos de infração (reais ou exemplos/modelos) — documentos da empresa, nunca versionar
+*.pdf
+
+# Prints e HTML capturado das telas do portal — contêm CPF/nome real do representante legal
+prints/
+codigos_site/
