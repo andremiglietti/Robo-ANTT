@@ -8,11 +8,20 @@ lemos a listagem.
 """
 from playwright.sync_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from robo_antt.config import SEL, SESSION_FILE, TIPOS_FISCALIZACAO, VISTAS_URL
+from robo_antt.config import PAUSA_ENTRE_ACOES_MS, SEL, SESSION_FILE, TIPOS_FISCALIZACAO, VISTAS_URL
 
 
 class SessaoExpiradaError(Exception):
     """A sessão salva não está mais autenticada - precisa de novo login manual."""
+
+
+class PortalIndisponivelError(Exception):
+    """O portal está fora do ar (ex.: manutenção) - não é problema de sessão,
+    só precisa tentar de novo mais tarde. Não sinalizar como se fosse preciso
+    logar de novo."""
+
+
+TEXTO_MANUTENCAO = "Estamos atualizando o sistema"
 
 
 def abrir_contexto(playwright, headless: bool = True) -> tuple:
@@ -27,24 +36,38 @@ def abrir_contexto(playwright, headless: bool = True) -> tuple:
     return browser, context, page
 
 
-def abrir_tela_processos(page: Page) -> None:
-    # "commit" (não "load"/"networkidle") porque a página tem alguma requisição
-    # de fundo que não termina nunca - com "load" o goto trava até estourar o
-    # timeout, mesmo a página já estando pronta pra uso (descoberto em 16/09/2026).
-    page.goto(VISTAS_URL, wait_until="commit", timeout=60000)
-    try:
-        page.wait_for_selector(SEL["representado"], state="attached", timeout=30000)
-    except PlaywrightTimeoutError:
-        pass
-    # O sinal confiável de sessão expirada é o REDIRECT pra Login.aspx - checar
-    # só a ausência do seletor dá falso positivo (a página às vezes demora um
-    # pouco mais que o timeout pra montar o DOM, mesmo com sessão válida;
-    # descoberto ao vivo em 16/09/2026).
+def abrir_tela_processos(page: Page, tentativas: int = 3) -> None:
+    """Abre a tela de processos, distinguindo os 3 motivos possíveis de falha:
+    sessão expirada, portal fora do ar (manutenção), ou lentidão passageira.
+
+    Achado em 16/09/2026: essa página às vezes demora bem mais que o normal
+    pra montar o DOM, e nunca dispara "load"/"networkidle" - por isso usa
+    "commit" pra navegar e espera o seletor com um timeout generoso. Também
+    achado no mesmo dia: às vezes o portal inteiro está em manutenção
+    ("Estamos atualizando o sistema..."), o que não tem nada a ver com a
+    sessão - por isso checamos esse texto antes de concluir sessão expirada.
+    """
+    for tentativa in range(1, tentativas + 1):
+        page.goto(VISTAS_URL, wait_until="commit", timeout=60000)
+        try:
+            page.wait_for_selector(SEL["representado"], state="attached", timeout=30000)
+            return  # sucesso
+        except PlaywrightTimeoutError:
+            if "Login.aspx" in page.url:
+                break  # não adianta tentar de novo, sessão realmente expirou
+            if TEXTO_MANUTENCAO in page.locator("body").inner_text():
+                raise PortalIndisponivelError(
+                    "O portal da ANTT está em manutenção agora "
+                    f'("{TEXTO_MANUTENCAO}..."). Não é problema de sessão - '
+                    "tentar de novo mais tarde."
+                )
+            # senão, provavelmente só demorou - tenta de novo
+
     if "Login.aspx" in page.url or page.locator(SEL["representado"]).count() == 0:
         raise SessaoExpiradaError(
-            f"Não foi possível acessar a tela de processos (URL atual: {page.url}) - "
-            "a sessão provavelmente expirou. É preciso refazer o login manual "
-            "(scripts/teste_sessao_1_capturar.py)."
+            f"Não foi possível acessar a tela de processos depois de {tentativas} tentativas "
+            f"(URL atual: {page.url}) - a sessão provavelmente expirou. É preciso refazer o "
+            "login manual (scripts/teste_sessao_1_capturar.py)."
         )
 
 
@@ -76,6 +99,7 @@ def selecionar_cnpj(page: Page, indice: int) -> None:
     interage com o widget visível, igual um humano faria: clica pra abrir e
     clica na opção certa pelo data-option-array-index.
     """
+    _esperar_modal_processando_sumir(page)
     page.click(SEL["representado_chosen"])
     page.click(f'{SEL["representado_chosen"]} li[data-option-array-index="{indice}"]')
     page.wait_for_timeout(300)
@@ -115,19 +139,48 @@ def _primeira_linha(page: Page) -> str | None:
     return atual[0]["auto_infracao"] if atual else None
 
 
+def _esperar_modal_processando_sumir(page: Page, timeout: int = 30000) -> None:
+    """Espera o modal "Processando..." (#Progress_DivProgress) sumir antes de
+    clicar em outra coisa. Achado em 16/09/2026: ele às vezes ainda está na
+    tela (bloqueando cliques) quando a próxima ação começa, mesmo depois da
+    tabela já ter atualizado - o clique seguinte falha com "elemento
+    intercepta o clique" se não esperar isso primeiro.
+    """
+    try:
+        page.wait_for_selector(SEL["modal_processando"], state="hidden", timeout=timeout)
+    except PlaywrightTimeoutError:
+        pass  # talvez o modal nem exista nessa página nesse momento - segue o jogo
+
+
 def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = 30000) -> None:
-    """Espera até a 1ª linha da tabela ser diferente de `valor_anterior` (ou a
-    tabela aparecer, se ela ainda não existia) - detecta o fim do AJAX sem
+    """Espera até a 1ª linha da tabela ser diferente de `valor_anterior`, ou
+    até aparecer "Nenhum registro encontrado" - detecta o fim do AJAX sem
     depender de wait_for_load_state, que trava nessa página (ver goto acima).
+
+    ⚠️ Achado em 16/09/2026 (confirmado manualmente pelo usuário): o
+    paginador do portal (o "X de N") **não reflete a quantidade real de
+    resultados** - ele aparece com N fixo mesmo quando não há resultado
+    nenhum, ou quando os resultados reais cabem em menos páginas do que N
+    sugere. Ou seja, não dá pra confiar em `info_paginacao()` pra saber
+    quando parar de paginar - o sinal real é a tabela vir vazia
+    ("Nenhum registro encontrado"), e é isso que essa função espera também
+    (não só "a linha mudou").
     """
     page.wait_for_function(
         """(args) => {
             const tabela = document.querySelector(args.sel);
             if (!tabela) return false;
             const linhas = tabela.querySelectorAll('tr');
-            if (linhas.length < 2) return false;
+            if (linhas.length === 0) return false;
+            // "Nenhum registro encontrado" vem como UMA linha só, sem cabeçalho,
+            // com <td colspan="6"> - diferente do caso normal (cabeçalho + linhas de dado)
+            if (linhas.length === 1) {
+                return !!linhas[0].querySelector('td[colspan]');
+            }
             const primeiraCelula = linhas[1].querySelector('td');
-            return primeiraCelula && primeiraCelula.innerText.trim() !== args.anterior;
+            if (!primeiraCelula) return false;
+            if (primeiraCelula.hasAttribute('colspan')) return true;
+            return primeiraCelula.innerText.trim() !== args.anterior;
         }""",
         arg={"sel": SEL["tabela_resultado"], "anterior": valor_anterior},
         timeout=timeout,
@@ -144,6 +197,7 @@ def buscar(page: Page) -> None:
     em 20s+). Por isso varrer_cnpj() itera pelos valores de TIPOS_FISCALIZACAO
     em vez de fazer uma busca só sem filtro.
     """
+    _esperar_modal_processando_sumir(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["btn_pesquisar"])
     try:
@@ -163,13 +217,21 @@ def info_paginacao(page: Page) -> tuple[int, int]:
 
 
 def ir_proxima_pagina(page: Page) -> None:
+    page.wait_for_timeout(PAUSA_ENTRE_ACOES_MS)  # não martelar o portal - ver config.py
+    _esperar_modal_processando_sumir(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["paginador_proxima"])
     _esperar_tabela_mudar(page, linha_anterior)
 
 
 def varrer_busca_atual(page: Page) -> list[dict]:
-    """Lê todas as páginas da busca que já está na tela (não seleciona nada)."""
+    """Lê todas as páginas da busca que já está na tela (não seleciona nada).
+
+    ⚠️ Não confia no "X de N" do paginador pra saber quantas páginas
+    percorrer - confirmado com o usuário em 16/09/2026 que esse número **não
+    reflete a quantidade real de resultados** (aparece fixo mesmo com 0
+    resultados). O sinal real de "acabou" é a próxima página vir vazia.
+    """
     todos = ler_pagina_atual(page)
     if not todos or page.locator(SEL["paginador_info"]).count() == 0:
         return todos  # sem resultado, ou resultado cabe numa página sem paginador
@@ -177,7 +239,10 @@ def varrer_busca_atual(page: Page) -> list[dict]:
     pagina_atual, total_paginas = info_paginacao(page)
     while pagina_atual < total_paginas:
         ir_proxima_pagina(page)
-        todos.extend(ler_pagina_atual(page))
+        pagina = ler_pagina_atual(page)
+        if not pagina:
+            break  # "Nenhum registro encontrado" - não tem mais dados de verdade, apesar do paginador
+        todos.extend(pagina)
         pagina_atual, total_paginas = info_paginacao(page)
     return todos
 
@@ -196,6 +261,7 @@ def varrer_cnpj(page: Page, cnpj_indice: int, cnpj_value: str) -> list[dict]:
 
     todos = []
     for tipo_value, tipo_nome in TIPOS_FISCALIZACAO.items():
+        page.wait_for_timeout(PAUSA_ENTRE_ACOES_MS)  # não martelar o portal - ver config.py
         selecionar_tipo_fiscalizacao(page, tipo_value)
         buscar(page)
         resultados = varrer_busca_atual(page)

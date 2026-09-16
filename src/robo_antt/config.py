@@ -7,6 +7,14 @@ OUTPUT_DIR = BASE_DIR / "data" / "output"
 
 VISTAS_URL = "https://appweb1.antt.gov.br/spmi/Site/Acessos/VistasAoProcesso.aspx"
 
+# Pausa deliberada (ms) entre ações que batem no servidor (troca de tipo de
+# fiscalização, próxima página, próximo CNPJ). Achado em 16/09/2026: baterias
+# de requisições em sequência rápida deixaram o portal visivelmente mais lento
+# e instável (page.goto chegando a travar 60s+). Não é otimização - é pra não
+# sobrecarregar um sistema de governo real. Ver "Achados operacionais" no
+# CLAUDE.md antes de reduzir esse valor.
+PAUSA_ENTRE_ACOES_MS = 2000
+
 # Seletores confirmados em 15/09/2026 a partir do outerHTML real do portal
 # (ver codigos_site/vistas_ao_processo.docx e codigos_site/tabela_pesquisar.txt).
 # O portal é ASP.NET WebForms — os ids reais têm o prefixo "Corpo_".
@@ -21,6 +29,7 @@ SEL = {
     "paginador_info": "#Corpo_ucPaginadorResultado li.info",
     "paginador_proxima": "#Corpo_ucPaginadorResultado_ucPaginadorResultado_lbNextPage",
     "representado_chosen": "#Corpo_ddlRepresentado_chosen",
+    "modal_processando": "#Progress_DivProgress",
 }
 
 # Valores reais do <select id="Corpo_ddlTipoFiscalizacao"> (capturados em 15/09/2026).

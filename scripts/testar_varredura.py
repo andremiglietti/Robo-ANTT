@@ -2,10 +2,14 @@
 TESTE — varredura de CNPJs e paginação (Dia 5 do cronograma)
 ================================================================
 
-Só LEITURA: lista os CNPJs, busca os processos do primeiro CNPJ (sem filtrar
-por tipo de fiscalização, pra pegar tudo de uma vez) e percorre todas as
-páginas de resultado. NÃO clica na lupa/"Vistas" - não baixa nenhum PDF nem
-solicita vistas a nenhum processo, só lê a tabela.
+Só LEITURA: lista os CNPJs, busca os processos do primeiro CNPJ (iterando por
+todos os tipos de fiscalização - buscar sem filtro trava o portal) e percorre
+todas as páginas de resultado. NÃO clica na lupa/"Vistas" - não baixa nenhum
+PDF nem solicita vistas a nenhum processo, só lê a tabela.
+
+O código já espera um pouco entre cada ação pra não sobrecarregar o portal
+(ver PAUSA_ENTRE_ACOES_MS em config.py) - rodar esse script inteiro pode levar
+alguns minutos, e é assim mesmo, não é bug.
 
 Requer que data/sessao/sessao_antt.json já exista e esteja válida.
 """
@@ -17,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from playwright.sync_api import sync_playwright
 
 from robo_antt.portal import (
+    PortalIndisponivelError,
     SessaoExpiradaError,
     abrir_contexto,
     abrir_tela_processos,
@@ -54,6 +59,8 @@ def main():
 
         except SessaoExpiradaError as e:
             print(f"\n[SESSÃO EXPIRADA] {e}")
+        except PortalIndisponivelError as e:
+            print(f"\n[PORTAL INDISPONÍVEL] {e}")
         finally:
             browser.close()
 
