@@ -12,6 +12,7 @@ from playwright.sync_api import Page
 
 from robo_antt.config import DOWNLOAD_DIR, SEL
 from robo_antt.extracao import extrair_texto_pagina1, identificar_tipo_multa
+from robo_antt.portal import fechar_modal_confirmacao_download
 
 
 def already_downloaded(auto_infracao: str, cnpj: str) -> Path | None:
@@ -47,6 +48,10 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     with page.expect_download(timeout=60000) as download_info:
         botao_visualizar.click()
     download = download_info.value
+
+    # o portal abre um modal de confirmação depois do download que fica
+    # bloqueando a tela até ser fechado - achado ao vivo em 16/09/2026
+    fechar_modal_confirmacao_download(page)
 
     # escreve em arquivo temporário primeiro, só depois move pro destino final
     # com o tipo já identificado - mesmo cuidado da gravação na pasta do

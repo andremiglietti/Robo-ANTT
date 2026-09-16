@@ -30,6 +30,13 @@ SEL = {
     "paginador_proxima": "#Corpo_ucPaginadorResultado_ucPaginadorResultado_lbNextPage",
     "representado_chosen": "#Corpo_ddlRepresentado_chosen",
     "modal_processando": "#Progress_DivProgress",
+    # modal de confirmação que aparece DEPOIS de cada download (clique na
+    # lupa) - "Vistas ao Processo Solicitada com Sucesso!" + pesquisa de
+    # satisfação. Fica aberto até ser fechado e bloqueia o próximo clique
+    # (achado ao vivo em 16/09/2026 - ver baixar_pdf() em download.py).
+    "modal_confirmacao_download": "#divMensagemPesquisa",
+    "modal_confirmacao_nao_responder": "#MessageBoxPesquisa_rdbNao",
+    "modal_confirmacao_ok": "#MessageBoxPesquisa_ButtonOkPesquisa",
 }
 
 # Valores reais do <select id="Corpo_ddlTipoFiscalizacao"> (capturados em 15/09/2026).

@@ -152,6 +152,27 @@ def _esperar_modal_processando_sumir(page: Page, timeout: int = 30000) -> None:
         pass  # talvez o modal nem exista nessa página nesse momento - segue o jogo
 
 
+def fechar_modal_confirmacao_download(page: Page, timeout: int = 15000) -> None:
+    """Fecha o modal "Vistas ao Processo Solicitada com Sucesso!" que
+    aparece DEPOIS de cada download (clique na lupa). Ele fica aberto até
+    ser fechado e bloqueia o próximo clique (erro "elemento intercepta o
+    clique") - achado ao vivo em 16/09/2026, chamar logo depois de
+    baixar_pdf() capturar o download.
+
+    Escolhe "Não Responder" na pesquisa de satisfação antes de clicar Ok -
+    o robô não deve interagir com a pesquisa da ANTT, e a opção marcada por
+    padrão é "Sim, Responder Agora", que abriria um formulário extra.
+    """
+    try:
+        page.wait_for_selector(SEL["modal_confirmacao_download"], state="visible", timeout=timeout)
+    except PlaywrightTimeoutError:
+        return  # não apareceu dessa vez - segue o jogo, não é bloqueante
+    if page.locator(SEL["modal_confirmacao_nao_responder"]).count():
+        page.check(SEL["modal_confirmacao_nao_responder"])
+    page.click(SEL["modal_confirmacao_ok"])
+    page.wait_for_selector(SEL["modal_confirmacao_download"], state="hidden", timeout=timeout)
+
+
 def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = 30000) -> None:
     """Espera até a 1ª linha da tabela ser diferente de `valor_anterior`, ou
     até aparecer "Nenhum registro encontrado" - detecta o fim do AJAX sem
@@ -234,26 +255,42 @@ def ir_proxima_pagina(page: Page) -> None:
     _esperar_tabela_mudar(page, linha_anterior)
 
 
-def varrer_busca_atual(page: Page) -> list[dict]:
-    """Lê todas as páginas da busca que já está na tela (não seleciona nada).
+def iterar_paginas_resultado(page: Page):
+    """Gerador: percorre a busca atual (já feita, não seleciona nada),
+    devolvendo a lista de linhas de CADA página, uma de cada vez. Diferente
+    de varrer_busca_atual() (que devolve tudo junto no final), este gerador
+    deixa cada linha ainda visível/clicável na tela no momento em que é
+    devolvida - necessário pra quem precisa interagir com a linha (ex.:
+    baixar_pdf() clicando na lupa) antes de avançar pra próxima página.
 
     ⚠️ Não confia no "X de N" do paginador pra saber quantas páginas
     percorrer - confirmado com o usuário em 16/09/2026 que esse número **não
     reflete a quantidade real de resultados** (aparece fixo mesmo com 0
     resultados). O sinal real de "acabou" é a próxima página vir vazia.
     """
-    todos = ler_pagina_atual(page)
-    if not todos or page.locator(SEL["paginador_info"]).count() == 0:
-        return todos  # sem resultado, ou resultado cabe numa página sem paginador
+    pagina = ler_pagina_atual(page)
+    if not pagina or page.locator(SEL["paginador_info"]).count() == 0:
+        yield pagina  # sem resultado, ou resultado cabe numa página sem paginador
+        return
 
+    yield pagina
     pagina_atual, total_paginas = info_paginacao(page)
     while pagina_atual < total_paginas:
         ir_proxima_pagina(page)
         pagina = ler_pagina_atual(page)
         if not pagina:
             break  # "Nenhum registro encontrado" - não tem mais dados de verdade, apesar do paginador
-        todos.extend(pagina)
+        yield pagina
         pagina_atual, total_paginas = info_paginacao(page)
+
+
+def varrer_busca_atual(page: Page) -> list[dict]:
+    """Lê todas as páginas da busca que já está na tela e devolve tudo numa
+    lista só. Ver iterar_paginas_resultado() se for processar cada linha
+    ainda com ela na tela (ex.: baixar o PDF)."""
+    todos: list[dict] = []
+    for pagina in iterar_paginas_resultado(page):
+        todos.extend(pagina)
     return todos
 
 

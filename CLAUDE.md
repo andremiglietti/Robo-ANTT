@@ -62,6 +62,7 @@ O projeto é inspirado (benchmarking) num robô já existente em outra empresa d
 - O código agora distingue isso corretamente: `abrir_tela_processos()` detecta esse texto e lança um erro específico, **`PortalIndisponivelError`** (diferente de `SessaoExpiradaError`) — importante porque a ação de recuperação é diferente: manutenção = tentar de novo mais tarde (não precisa de login novo); sessão expirada = precisa de login manual novo. Isso alimenta diretamente o item 6 (checkpoint/retentativa), que já previa essa distinção.
 - Mesmo com essa causa esclarecida, mantive por precaução uma pausa deliberada entre ações que batem no servidor (`PAUSA_ENTRE_ACOES_MS = 2000` em `config.py`, usada entre troca de tipo de fiscalização e entre páginas) — não custa nada e evita bater no portal sem necessidade, inclusive durante os próprios testes.
 - ✅ **Portal voltou e a varredura completa foi validada** (ver item 3 acima) — achados corrigidos no mesmo dia: paginador não confiável, e modal "Processando..." bloqueando cliques seguintes.
+- ⚠️ **Correção de um achado anterior:** o primeiro teste ao vivo da varredura completa (mais cedo em 16/09) tinha reportado "5 processos (3 Excesso de Peso + 2 Passageiros)" pro CNPJ matriz. Testado de novo depois, já com o código mais maduro (detecção de página vazia corrigida): "Passageiros" retorna **0 resultados** pra esse CNPJ, de forma consistente e reproduzível. A leitura de "2 Passageiros" foi provavelmente um efeito de um bug que já existia naquela hora e só foi corrigido depois (a tabela pode ter sido lida antes do AJAX da troca de tipo terminar, mostrando dado antigo) - não um dado real que "sumiu". Fica o registro pra não gerar confusão se alguém comparar os números depois.
 4. **Controle de duplicidade**: antes de baixar um auto, verificar se ele já existe no repositório local (arquivo + registro), para não reprocessar o que já foi capturado.
    - ✅ Confirmado em 15/09/2026: o PDF já é baixado com o nome do **número do Auto de Infração** (ex.: `EPSMA00087472019.pdf`), sem precisar renomear.
    - ✅ **`already_downloaded()` implementado e validado em 16/09/2026** (`src/robo_antt/download.py`): como a pasta final depende do tipo de multa (só conhecido depois de abrir o PDF - ver item 5), a checagem faz um glob por `data/downloads/{cnpj}/*/{numero_auto}.pdf`. Testado: encontra o arquivo certo **sem precisar do navegador/sessão** (retorna na hora, não gasta tempo nem toca no portal) — importante pra não desperdiçar as ~2,6min/CNPJ da varredura reprocessando o que já foi baixado.
@@ -88,7 +89,12 @@ O projeto é inspirado (benchmarking) num robô já existente em outra empresa d
    - ⚠️ **O "documento fiscal" NÃO é sempre CIOT/MDF-e** — o campo "Tipo de Documento" observado varia por auto: `DANFE` (excesso de peso, produtos perigosos), `MDFE` (vale-pedágio, piso mínimo em 1 dos 2 exemplos) ou `CONTRATO DE TRANSPORTE` (piso mínimo no outro exemplo). A extração precisa ler o par "Tipo de Documento" + "Número do Documento" genericamente, não assumir CIOT/MDF-e fixo.
    - Cada tipo de auto tem um layout de tabela diferente (nº de veículos, campos de cálculo de piso mínimo, ONU/produto perigoso, etc.), mas todos compartilham o núcleo acima.
 6. **Checkpoint e retentativa**: manter um estado persistente (ex.: JSON) entre execuções, distinguindo falha de infraestrutura/sessão expirada (não tentar logar sozinho — sinalizar que precisa de novo login manual) de falha real de um documento específico.
+   - ✅ **Implementado e validado ao vivo em 16/09/2026** (`src/robo_antt/checkpoint.py`): `data/output/checkpoint.json` guarda os autos já processados com sucesso e as falhas (com motivo) - autos já processados são pulados em execuções futuras sem reprocessar. `SessaoExpiradaError`/`PortalIndisponivelError` sobem e param a execução inteira (não marcam falha de documento); qualquer outro erro (de 1 documento específico, ou de navegação num tipo/CNPJ) é capturado, registrado e a varredura continua pros próximos.
+   - ✅ **Orquestrador implementado e validado ao vivo** (`src/robo_antt/orquestrador.py`, função `rodar()`): liga varredura → checagem de duplicidade → download → extração → planilha, salvando planilha e checkpoint **a cada CNPJ concluído** (não só no final - uma varredura completa pode levar horas, ver estimativa no item 3).
+   - 🔴 **Achado ao vivo em 16/09/2026 — outro modal bloqueando cliques.** Depois de CADA download (clique na lupa), o portal abre um modal de confirmação ("Vistas ao Processo Solicitada com Sucesso!" + pesquisa de satisfação, `#divMensagemPesquisa`) que fica aberto até ser fechado, bloqueando o próximo clique (busca seguinte, próxima página, ou próximo download). Corrigido: `fechar_modal_confirmacao_download()` em `portal.py` marca "Não Responder" e clica "Ok" automaticamente logo depois de cada download (chamado dentro de `baixar_pdf()`) - o robô não deve interagir com a pesquisa de satisfação da ANTT.
+   - ✅ **Teste ao vivo completo:** rodou o orquestrador pra 1 CNPJ, todos os 7 tipos de fiscalização - baixou os PDFs novos que faltavam (incluindo o que falhou antes da correção do modal, confirmando o fix), preencheu a planilha corretamente, e terminou sem erro mesmo com a maioria dos tipos vazios (o robô distingue "sem resultado" de erro de verdade).
 7. **Saída**: gravar o resultado consolidado (planilha) na pasta sincronizada com o SharePoint, com o cuidado de escrita em arquivo temporário mencionado acima.
+   - ✅ **`src/robo_antt/planilha.py` implementado e validado em 16/09/2026:** cria a planilha com o cabeçalho certo se não existir, abre e preserva o conteúdo se já existir; `ja_registrado()` evita duplicar linha pro mesmo auto (complementa a checagem de arquivo em `download.py` - protege até contra o caso do PDF já existir de uma execução anterior mas a linha não ter sido gravada por algum motivo); grava com o mesmo cuidado de arquivo temporário + troca das outras saídas.
    - ✅ **Definido em 15/09/2026 — escopo final da saída (substitui a ideia original de cruzamento com base interna):**
      - **Uma planilha Excel** (criar se não existir, senão atualizar) com, no mínimo, estas colunas: `Link do Arquivo`, `Número do Processo`, `Auto de Infração`, `Tipo de Multa`, `CNPJ`, `Data Autuação`, `Data Emissão Doc. Fiscal`, `Data Emissão Notificação`, `Data Emissão Boleto`, `Data Vencimento`, `Valor`, `Valor Desconto`, `Placa`, `Descrição da Infração`, `Código de Barras`.
        - ✅ Decisão de 15/09/2026: as datas de "emissão" viraram **3 colunas separadas** (doc. fiscal / notificação / boleto) em vez de uma só — o PDF tem até 3 datas de emissão diferentes conforme a página, e juntar tudo numa coluna perderia informação.
@@ -133,24 +139,32 @@ O projeto é inspirado (benchmarking) num robô já existente em outra empresa d
 
 ---
 
-## Estrutura do projeto (estruturada em 14/09/2026, evidências adicionadas em 15/09/2026)
+## Estrutura do projeto (estruturada em 14/09/2026, robô completo em 16/09/2026)
 
 ```
 Robo-ANTT/
 ├── CLAUDE.md               # este arquivo
-├── requirements.txt         # dependências Python (playwright==1.62.0)
+├── requirements.txt         # dependências Python (playwright, pdfplumber, pymupdf, openpyxl)
 ├── .gitignore               # exclui sessão salva, PDFs, prints/código do portal, downloads, saída, venv
 ├── .venv/                   # ambiente virtual Python (não versionado)
-├── src/robo_antt/           # pacote Python do robô (código real, ainda vazio — começa a ser escrito no Dia 3, 16/09)
+├── src/robo_antt/           # pacote Python do robô
+│   ├── config.py             # caminhos, seletores do portal, tipos de fiscalização
+│   ├── portal.py              # navegação: sessão, CNPJs, busca, paginação, modais
+│   ├── download.py            # baixa o PDF (clique na lupa) e organiza por CNPJ/tipo
+│   ├── extracao.py            # extrai todos os campos do PDF (página 1, boleto, notificação)
+│   ├── planilha.py            # cria/atualiza a planilha Excel final
+│   ├── checkpoint.py          # estado persistente entre execuções
+│   └── orquestrador.py        # liga tudo - ponto de entrada principal (rodar())
 ├── scripts/                 # scripts avulsos executáveis
 │   ├── teste_sessao_1_capturar.py
-│   └── teste_sessao_2_testar.py
+│   ├── teste_sessao_2_testar.py
+│   └── testar_varredura.py
 ├── prints/                  # [NÃO versionado] prints de todas as telas do portal (login, home, consulta, tabela paginada)
 ├── codigos_site/            # [NÃO versionado] outerHTML (.docx/.txt) dessas mesmas telas — usado pra achar os seletores reais
 ├── data/
 │   ├── sessao/               # sessao_antt.json (cookies — nunca versionar)
-│   ├── downloads/            # PDFs de exemplo (excesso_peso, piso_minimo ×2, produtos_perigosos, vale_pedagio) + print da tabela — nunca versionar
-│   └── output/                # relatório/planilha final antes de ir para o SharePoint (nunca versionar)
+│   ├── downloads/            # PDFs baixados, organizados por CNPJ/tipo de multa — nunca versionar
+│   └── output/                # relatorio_multas.xlsx + checkpoint.json — ainda local, falta apontar pra pasta real do SharePoint (ver "Próximos passos")
 └── docs/                    # material de apoio e planejamento
     ├── checklist_robo_antt.md
     ├── cronograma_robo_antt_3.md      # cronograma vigente (substitui a versão anterior)
@@ -160,7 +174,7 @@ Robo-ANTT/
     └── Bench ANTT.srt
 ```
 
-Ambiente Python: `.venv` criado com Python 3.13, `playwright==1.62.0` instalado via `requirements.txt`, e o navegador Chromium do Playwright já baixado (`python -m playwright install chromium`). Para reativar o ambiente: `.venv\Scripts\activate` (PowerShell) e depois rodar os scripts em `scripts/` com `python scripts/nome_do_script.py`.
+Ambiente Python: `.venv` criado com Python 3.13; dependências em `requirements.txt`; navegador Chromium do Playwright já baixado (`python -m playwright install chromium`). Para reativar o ambiente: `.venv\Scripts\activate` (PowerShell). Rodar o robô: `python -c "from robo_antt.orquestrador import rodar; rodar()"` (com `src/` no `PYTHONPATH`, ou de dentro de `src/`) — ainda sem um atalho/CLI amigável pra pessoa não-técnica (Dia 12 do cronograma).
 
 ## Arquivos já produzidos
 
@@ -174,7 +188,10 @@ Ambiente Python: `.venv` criado com Python 3.13, `playwright==1.62.0` instalado 
 - `src/robo_antt/portal.py` — navegação: abrir sessão salva, distinguir sessão expirada (`SessaoExpiradaError`) de portal em manutenção (`PortalIndisponivelError`), listar CNPJs, selecionar CNPJ/tipo de fiscalização, buscar processos e percorrer a paginação (tolerando o paginador não confiável e o modal "Processando..." travado). Escrito e **validado ao vivo por completo em 16/09/2026** — varredura de 1 CNPJ pelos 7 tipos, achando processos reais, sem travar.
 - `scripts/testar_varredura.py` — script de teste (só leitura, não baixa PDF nem solicita vistas) para validar a varredura ponta a ponta.
 - `src/robo_antt/extracao.py` — extração **completa** de campos do PDF (`pdfplumber` + `pymupdf`): tipo de multa, campos da página 1 (placa, CNPJ, data, descrição, documento fiscal), campos do boleto (vencimento, valor, desconto, código de barras, data de emissão) e data de emissão da notificação — localizando as páginas certas dentro de processos de até 79 páginas. Tolerante ao bug de acentuação do PDF e às variações de rótulo/layout entre os 5 tipos de multa. **Validado nos 5 PDFs de exemplo: todos os campos corretos**, incluindo os 2 casos sem boleto (corretamente vazio, não erro).
-- `src/robo_antt/download.py` — clica na lupa da linha, captura o download, identifica o tipo de multa e salva em `data/downloads/{cnpj}/{tipo_multa}/{auto}.pdf`; checagem de duplicidade sem precisar abrir o navegador. **Validado ao vivo em 16/09/2026** com um processo real (`EPSMA00087472019`).
+- `src/robo_antt/download.py` — clica na lupa da linha, captura o download, fecha o modal de confirmação/pesquisa de satisfação que aparece depois, identifica o tipo de multa e salva em `data/downloads/{cnpj}/{tipo_multa}/{auto}.pdf`; checagem de duplicidade sem precisar abrir o navegador. **Validado ao vivo em 16/09/2026** com processos reais.
+- `src/robo_antt/checkpoint.py` — estado persistente entre execuções (`data/output/checkpoint.json`): autos já processados (pra não repetir) e falhas por documento (com motivo). **Validado ao vivo.**
+- `src/robo_antt/planilha.py` — cria/atualiza a planilha Excel final (`data/output/relatorio_multas.xlsx`), com checagem de duplicidade por linha e gravação seguindo o cuidado de arquivo temporário. **Validado ao vivo.**
+- `src/robo_antt/orquestrador.py` — liga tudo (varredura → download → extração → planilha), com checkpoint e tratamento de falha por CNPJ/tipo sem derrubar a execução inteira. **Validado ao vivo, ponta a ponta**, com um CNPJ real e os 7 tipos de fiscalização.
 
 ## Status atual do checklist (resumo)
 
@@ -192,7 +209,7 @@ Ambiente Python: `.venv` criado com Python 3.13, `playwright==1.62.0` instalado 
 - Bloco 6.3–6.5 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — tarefas de negócio, não técnicas.
 - Confirmação de disponibilidade recorrente da pessoa do login manual (Dia 1, item 1.2 parcial) — **ganhou urgência** com o achado de que a sessão dura menos de 40h (e nos testes de hoje, às vezes bem menos que isso).
 
-**Ou seja: os Blocos 1–3 do checklist estão fechados, e a varredura + download do PDF + extração COMPLETA de campos estão escritos e validados** — ao vivo contra o portal real (varredura, download) e contra os 5 PDFs de exemplo (extração, 100% dos campos corretos) — inclusive corrigindo diversos bugs reais que só apareceram testando contra o sistema de verdade (hack do `chosen.js`, busca sem filtro de tipo travando, paginador não confiável, modal "Processando..." bloqueando cliques, tempo de resposta variável, bug de fonte do PDF, páginas de boleto/notificação em posição variável). Falta juntar as peças num fluxo único e gerar a planilha Excel de fato.
+**O robô está funcionalmente completo de ponta a ponta** (login/sessão → varredura → download → extração → planilha → checkpoint), escrito e validado ao vivo contra o portal real e contra os 5 PDFs de exemplo — corrigindo cerca de 10 bugs reais ao longo do dia que só apareceram testando contra o sistema de verdade. O que falta agora é (a) apontar a saída pra pasta real sincronizada com o SharePoint (ainda grava em `data/output/` local), (b) itens de negócio do Bloco 6, e (c) rodar numa escala maior/real antes da entrega.
 
 ## Próximos passos sugeridos
 
@@ -200,9 +217,12 @@ Ambiente Python: `.venv` criado com Python 3.13, `playwright==1.62.0` instalado 
 2. ~~Escrever e validar ao vivo a lógica de varredura multi-CNPJ, busca por tipo e paginação~~ — feito e validado por completo em 16/09/2026 (`src/robo_antt/portal.py`).
 3. ~~Escrever e validar ao vivo o download do PDF + identificação do tipo de multa~~ — feito em 16/09/2026 (`src/robo_antt/download.py`, `src/robo_antt/extracao.py`).
 4. ~~Extrair todos os campos do PDF (página 1, boleto, notificação)~~ — feito e validado em 16/09/2026, 100% dos campos corretos nos 5 exemplos (`src/robo_antt/extracao.py`).
-5. **Gerar a planilha Excel final** (`openpyxl` ou similar): criar se não existir, atualizar se existir, juntando os dados da varredura (Número do Processo, Auto de Infração, Situação, Data do Auto) com os da extração do PDF (as 13 colunas restantes) — Dia 11 do cronograma antecipado.
-6. Escrever um `main.py`/script orquestrador que liga tudo: varredura → checa duplicidade → baixa → extrai → grava na planilha, com checkpoint/retentativa (JSON de estado entre execuções, item 6 da arquitetura) e gravação seguindo o cuidado de arquivo temporário na pasta do SharePoint.
-7. Confirmar os itens pendentes do Bloco 6 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — em paralelo, não bloqueia o código.
+5. ~~Gerar a planilha Excel final~~ — feito e validado em 16/09/2026 (`src/robo_antt/planilha.py`).
+6. ~~Escrever o orquestrador (varredura → duplicidade → download → extração → planilha) com checkpoint/retentativa~~ — feito e validado ao vivo em 16/09/2026 (`src/robo_antt/orquestrador.py`, `src/robo_antt/checkpoint.py`).
+7. Trocar `OUTPUT_DIR`/`DOWNLOAD_DIR` (hoje `data/output/` e `data/downloads/` locais) pelo caminho real da pasta sincronizada com o OneDrive/SharePoint, quando esse caminho for confirmado (depende do Bloco 6.1–6.3, já resolvidos na máquina da pessoa responsável, mas o caminho exato ainda não foi passado pra dentro do código).
+8. Rodar um teste em escala um pouco maior (alguns CNPJs, todos os tipos) antes de considerar rodar a empresa toda (~2,5-3h) - o teste de hoje foi só 1 CNPJ.
+9. Confirmar os itens pendentes do Bloco 6 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — em paralelo, não bloqueia o código.
+10. Dia 12 do cronograma: criar o atalho de execução (duplo clique) e um mini-guia de uso pra pessoa responsável, que não é técnica.
 
 ## Notas de segurança adicionadas nesta sessão
 
