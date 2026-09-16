@@ -14,6 +14,7 @@ comparar a string inteira.
 import re
 from pathlib import Path
 
+import pymupdf
 import pdfplumber
 
 
@@ -54,14 +55,15 @@ def identificar_tipo_multa(texto_pagina1: str) -> str:
     return "Outros"  # tipo ainda não mapeado - revisar manualmente
 
 
-def _celulas_pagina1(pdf_path: Path) -> list[str]:
+def _celulas_da_pagina(pdf_path: Path, indice_pagina: int = 0) -> list[str]:
     """O PDF é um formulário com bordas - cada célula da tabela contém
     "NÚMERO - RÓTULO\nVALOR" (rótulo e valor empilhados na mesma célula).
     Isso é bem mais confiável pra extrair campo por campo do que regex em
     cima do texto corrido (a ordem de leitura do texto corrido não segue o
-    layout visual - testado em 16/09/2026, ver docstring do módulo)."""
+    layout visual - testado em 16/09/2026, ver docstring do módulo).
+    `indice_pagina` é 0-based (0 = página 1)."""
     with pdfplumber.open(str(pdf_path)) as pdf:
-        tabelas = pdf.pages[0].extract_tables()
+        tabelas = pdf.pages[indice_pagina].extract_tables()
     celulas = []
     for tabela in tabelas:
         for linha in tabela:
@@ -69,6 +71,23 @@ def _celulas_pagina1(pdf_path: Path) -> list[str]:
                 if celula:
                     celulas.append(celula.strip())
     return celulas
+
+
+def _ultimo_valor_do_campo(celulas: list[str], padrao_rotulo: str) -> str | None:
+    """Como _valor_do_campo, mas devolve a ÚLTIMA célula que bate (não a
+    primeira) - usado quando o mesmo rótulo aparece mais de uma vez na
+    página e o campo que interessa é o último (ex.: "DATA DE EMISSÃO"
+    aparece 2x na página do boleto em alguns layouts - a primeira é do
+    documento fiscal, repetida; a última é do boleto em si)."""
+    encontrado = None
+    for celula in celulas:
+        partes = celula.split("\n", 1)
+        if len(partes) != 2:
+            continue
+        rotulo, valor = partes
+        if re.fullmatch(padrao_rotulo, rotulo.strip(), re.IGNORECASE):
+            encontrado = re.sub(r"\s+", " ", valor).strip()
+    return encontrado
 
 
 def _valor_do_campo(celulas: list[str], padrao_rotulo: str, exato: bool = False) -> str | None:
@@ -101,7 +120,7 @@ def extrair_campos_pagina1(pdf_path: Path) -> dict:
     livre acentuado (descrição) saem com "�" no lugar de vogais acentuadas -
     limitação conhecida do PDF do portal, não desse código.
     """
-    celulas = _celulas_pagina1(pdf_path)
+    celulas = _celulas_da_pagina(pdf_path, 0)
     cnpj_infrator = _valor_do_campo(celulas, r"CNPJ\s*/\s*CPF|CPF\s*/\s*CNPJ")
     if cnpj_infrator:
         # em valores estreitos o CNPJ pode quebrar linha no meio (ex.: "...0002-\n63"),
@@ -126,3 +145,118 @@ def extrair_campos_pagina1(pdf_path: Path) -> dict:
         # varia entre "DATA EMISSÃO" e "DATA DE EMISSÃO"
         "data_emissao_doc_fiscal": _valor_do_campo(celulas, r"DATA\s+(?:DE\s+)?EMISS.O"),
     }
+
+
+# "Linha digitável" do código de barras do boleto/GRU: 3 dígitos do banco +
+# dígito verificador, depois 4 blocos separados por espaço/ponto, terminando
+# num bloco de 14 dígitos. Ex.: "001-9 00190.00009 02941.141109 24294.819172 2 79650000199216".
+_PADRAO_CODIGO_BARRAS = re.compile(r"\d{3}-\d\s+\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}")
+
+
+def localizar_pagina_boleto(pdf_path: Path) -> int | None:
+    """Acha o número da página (1-based) do boleto/1ª notificação de
+    penalidade, procurando "NOSSO NÚMERO" + "VENCIMENTO" juntos (específico
+    o bastante pra não confundir com outras páginas do processo que só
+    mencionam "multa"/"vencimento" no meio de texto jurídico genérico -
+    achado em 16/09/2026).
+
+    Usa PyMuPDF (`pymupdf`) em vez de pdfplumber pra essa busca porque é MUITO
+    mais rápido pra varrer o documento inteiro (~30 páginas em 0,5s contra
+    quase 50s do pdfplumber - testado em 16/09/2026) - importante porque
+    processos reais podem ter até ~79 páginas, e o boleto pode estar bem no
+    fim (visto na página 57 de 69 num dos exemplos).
+
+    Retorna None se o processo não tem boleto ainda - isso é normal (ex.:
+    recurso ainda não julgado), não é erro. Ver CLAUDE.md, item 5.
+    """
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        for indice, pagina in enumerate(doc):
+            texto = pagina.get_text().upper()
+            if "NOSSO N" in texto and "VENCIMENTO" in texto:
+                return indice + 1
+    finally:
+        doc.close()
+    return None
+
+
+def extrair_campos_boleto(pdf_path: Path, numero_pagina: int) -> dict:
+    """Extrai os campos do boleto (`numero_pagina` é 1-based - ver
+    localizar_pagina_boleto). Usa regex no texto corrido, não nas células da
+    tabela como extrair_campos_pagina1 - o boleto tem pelo menos 2 layouts
+    bem diferentes entre os tipos de multa vistos até agora (o do "auto de
+    trânsito" clássico e o da GRU - Guia de Recolhimento da União), mas as
+    duas variações têm as mesmas frases-âncora no texto corrido.
+    """
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        texto = pdf.pages[numero_pagina - 1].extract_text() or ""
+
+    m_vencimento = re.search(r"DATA DO VENCIMENTO\s+(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
+    m_codigo_barras = _PADRAO_CODIGO_BARRAS.search(texto)
+    # layout GRU descreve o desconto numa frase ("...conceder desconto de
+    # R$ 772,50...") em vez de um valor limpo logo após o rótulo da tabela -
+    # tenta essa forma primeiro, cai pro rótulo "Desconto/Abatimento" direto
+    # (layout do auto de trânsito clássico) se não achar.
+    m_desconto = re.search(r"desconto\s+de\s+R\$\s*([\d.,]+)", texto, re.IGNORECASE)
+    if not m_desconto:
+        m_desconto = re.search(r"Desconto\s*/\s*Abatimento\D{0,10}?([\d.,]+)", texto, re.IGNORECASE)
+    m_valor_total = re.search(r"VALOR TOTAL DA MULTA\(R\$\)\D{0,10}?([\d.,]+)", texto, re.IGNORECASE)
+    if not m_valor_total:
+        # layout GRU: não tem "VALOR TOTAL DA MULTA" - usa o valor do documento do boleto
+        m_valor_total = re.search(r"VALOR\s+DOCUMENTO.*?R\$\s*([\d.,]+)", texto, re.IGNORECASE | re.DOTALL)
+
+    # "DATA DE EMISSÃO" aparece 2x nessa página em alguns layouts (a do
+    # documento fiscal, repetida, e a do boleto/notificação em si) - a do
+    # boleto é sempre a ÚLTIMA ocorrência. Usa as células da tabela (não
+    # regex no texto corrido, que aqui agrupa os rótulos longe dos valores -
+    # achado em 16/09/2026) pra achar esse campo com confiança.
+    celulas = _celulas_da_pagina(pdf_path, numero_pagina - 1)
+    data_emissao_boleto = _ultimo_valor_do_campo(celulas, r"\d*\s*-?\s*DATA\s+(?:DE\s+)?EMISS.O")
+
+    return {
+        "data_vencimento": m_vencimento.group(1) if m_vencimento else None,
+        "codigo_barras": m_codigo_barras.group().strip() if m_codigo_barras else None,
+        "valor_desconto": m_desconto.group(1) if m_desconto else None,
+        "valor": m_valor_total.group(1) if m_valor_total else None,
+        "data_emissao_boleto": data_emissao_boleto,
+    }
+
+
+def localizar_pagina_notificacao(pdf_path: Path) -> int | None:
+    """Acha o número da página (1-based) da "Notificação da Autuação" -
+    página que vem antes do boleto e tem sua própria "Data de Emissão"
+    (diferente da data de emissão do documento fiscal, da página 1, e da
+    data de emissão do boleto - são 3 datas de emissão diferentes, cada uma
+    numa página).
+
+    ⚠️ Começa a procurar a partir da **página 2**, nunca a 1: a página 1 de
+    vários tipos de auto menciona "notificação de autuação" de passagem,
+    dentro de uma frase jurídica (ex.: "...contados do recebimento da
+    notificação de autuação..."), o que dava falso positivo (achado em
+    16/09/2026) - a notificação de verdade, com campos próprios, está
+    sempre numa página separada.
+
+    Mesma técnica de localizar_pagina_boleto (PyMuPDF, rápido o bastante pra
+    varrer o documento inteiro). Pode devolver None se não achar (nesse caso
+    o campo fica em branco na planilha, não é erro).
+    """
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        for indice, pagina in enumerate(doc):
+            if indice == 0:
+                continue
+            texto = pagina.get_text().upper()
+            if "NOTIFICA" in texto and "AUTUA" in texto:
+                return indice + 1
+    finally:
+        doc.close()
+    return None
+
+
+def extrair_data_emissao_notificacao(pdf_path: Path, numero_pagina: int) -> str | None:
+    """Data de emissão da página de notificação (ver localizar_pagina_notificacao).
+    Pega a ÚLTIMA célula "DATA DE EMISSÃO" da página - a primeira, quando
+    existe mais de uma, costuma ser a repetição da data de emissão do
+    documento fiscal (já capturada em extrair_campos_pagina1)."""
+    celulas = _celulas_da_pagina(pdf_path, numero_pagina - 1)
+    return _ultimo_valor_do_campo(celulas, r"\d*\s*-?\s*DATA\s+(?:DE\s+)?EMISS.O")
