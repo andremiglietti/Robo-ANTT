@@ -188,7 +188,7 @@ def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int =
     page.wait_for_timeout(300)
 
 
-def buscar(page: Page) -> None:
+def buscar(page: Page, tentativas: int = 3) -> None:
     """Clica em Pesquisar e espera a tabela terminar de carregar.
 
     ⚠️ O campo "Tipo de Fiscalização" tem que estar preenchido antes de
@@ -196,17 +196,27 @@ def buscar(page: Page) -> None:
     indefinidamente no servidor (testado ao vivo em 16/09/2026, sem resposta
     em 20s+). Por isso varrer_cnpj() itera pelos valores de TIPOS_FISCALIZACAO
     em vez de fazer uma busca só sem filtro.
+
+    ⚠️ O tempo de resposta do portal varia muito (visto entre ~8s e mais de
+    30s pra mesma busca, em momentos diferentes - achado em 16/09/2026). Por
+    isso, se o primeiro `wait` estourar o timeout, a função **espera de novo**
+    (o clique em Pesquisar já foi feito, só continua aguardando a mesma
+    resposta) antes de desistir e assumir que a busca não teve resultado -
+    assumir "sem resultado" cedo demais faz o robô pular processos de
+    verdade.
     """
     _esperar_modal_processando_sumir(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["btn_pesquisar"])
-    try:
-        _esperar_tabela_mudar(page, linha_anterior)
-    except PlaywrightTimeoutError:
-        # provavelmente essa busca não teve nenhum resultado (a tabela nem
-        # chega a aparecer nesse caso) - deixa ler_pagina_atual() confirmar,
-        # em vez de derrubar a varredura inteira por causa de 1 tipo vazio.
-        pass
+    for tentativa in range(tentativas):
+        try:
+            _esperar_tabela_mudar(page, linha_anterior)
+            return  # sucesso
+        except PlaywrightTimeoutError:
+            continue  # ainda "Processando..." - espera mais um pouco
+    # depois de todas as tentativas, se realmente não veio nada, deixa
+    # ler_pagina_atual() confirmar (pode ser busca sem resultado de verdade)
+    # em vez de derrubar a varredura inteira por causa de 1 tipo.
 
 
 def info_paginacao(page: Page) -> tuple[int, int]:
