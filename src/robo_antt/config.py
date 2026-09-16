@@ -47,6 +47,14 @@ SEL = {
     "modal_confirmacao_download": "#divMensagemPesquisa",
     "modal_confirmacao_nao_responder": "#MessageBoxPesquisa_rdbNao",
     "modal_confirmacao_ok": "#MessageBoxPesquisa_ButtonOkPesquisa",
+    # modal de mensagem GENÉRICO do portal (erro/aviso do servidor) - visto
+    # ao vivo em 16/09/2026 (teste em escala maior) bloqueando cliques depois
+    # de alguns downloads que vieram com problema (ver "Achados" no
+    # CLAUDE.md). Id do botão Ok inferido pelo mesmo padrão de nomenclatura
+    # do modal_confirmacao_ok (MessageBox_ButtonOk / MessageBoxPesquisa_ButtonOkPesquisa)
+    # - ainda não confirmado com outerHTML capturado ao vivo dessa modal específica.
+    "modal_mensagem_generica": "#divMensagem",
+    "modal_mensagem_generica_ok": "#MessageBox_ButtonOk",
 }
 
 # Valores reais do <select id="Corpo_ddlTipoFiscalizacao"> (capturados em 15/09/2026).

@@ -99,7 +99,7 @@ def selecionar_cnpj(page: Page, indice: int) -> None:
     interage com o widget visível, igual um humano faria: clica pra abrir e
     clica na opção certa pelo data-option-array-index.
     """
-    _esperar_modal_processando_sumir(page)
+    preparar_para_clicar(page)
     page.click(SEL["representado_chosen"])
     page.click(f'{SEL["representado_chosen"]} li[data-option-array-index="{indice}"]')
     page.wait_for_timeout(300)
@@ -152,25 +152,72 @@ def _esperar_modal_processando_sumir(page: Page, timeout: int = 30000) -> None:
         pass  # talvez o modal nem exista nessa página nesse momento - segue o jogo
 
 
-def fechar_modal_confirmacao_download(page: Page, timeout: int = 15000) -> None:
+def fechar_modal_confirmacao_download(page: Page, timeout: int = 45000, exigir: bool = False) -> None:
     """Fecha o modal "Vistas ao Processo Solicitada com Sucesso!" que
     aparece DEPOIS de cada download (clique na lupa). Ele fica aberto até
     ser fechado e bloqueia o próximo clique (erro "elemento intercepta o
     clique") - achado ao vivo em 16/09/2026, chamar logo depois de
     baixar_pdf() capturar o download.
 
+    ⚠️ Achado em teste de escala maior (16/09/2026): esse modal pode demorar
+    a aparecer tanto quanto qualquer outra resposta desse portal (visto
+    levando mais de 15s em alguns casos) - um timeout curto aqui faz a
+    função devolver achando que "não apareceu", quando na verdade ele só
+    ainda ia aparecer. Se isso acontece, o modal fica aberto e trava TODOS
+    os cliques seguintes pelo resto da execução (não só o próximo). Por
+    isso: timeout mais generoso, e `baixar_pdf()` também chama essa função
+    ANTES de clicar (não só depois) - se um modal ficou pendurado de uma
+    chamada anterior por qualquer motivo, a próxima chamada se autocorrige
+    em vez de ficar travada pro resto da execução.
+
     Escolhe "Não Responder" na pesquisa de satisfação antes de clicar Ok -
     o robô não deve interagir com a pesquisa da ANTT, e a opção marcada por
     padrão é "Sim, Responder Agora", que abriria um formulário extra.
+
+    `exigir=True` propaga o timeout em vez de engolir (usado antes do
+    clique, onde "não apareceu" é o caminho normal e não deve custar
+    `timeout` inteiro de espera toda vez - ver baixar_pdf()).
     """
     try:
-        page.wait_for_selector(SEL["modal_confirmacao_download"], state="visible", timeout=timeout)
+        page.wait_for_selector(SEL["modal_confirmacao_download"], state="visible", timeout=timeout if exigir else 2000)
     except PlaywrightTimeoutError:
         return  # não apareceu dessa vez - segue o jogo, não é bloqueante
     if page.locator(SEL["modal_confirmacao_nao_responder"]).count():
         page.check(SEL["modal_confirmacao_nao_responder"])
     page.click(SEL["modal_confirmacao_ok"])
     page.wait_for_selector(SEL["modal_confirmacao_download"], state="hidden", timeout=timeout)
+
+
+def fechar_modal_mensagem_generica(page: Page, timeout: int = 2000) -> None:
+    """Fecha o modal de mensagem genérico do portal (`#divMensagem`) se
+    estiver na tela - usado pra erros/avisos do servidor (ex.: visto ao vivo
+    em 16/09/2026 associado a alguns downloads que vieram com problema, tipo
+    de auto ainda não identificado com certeza). Não sabemos ainda o texto
+    exato que aparece dentro - só que ele bloqueia cliques até ser fechado,
+    igual aos outros modais.
+    """
+    try:
+        page.wait_for_selector(SEL["modal_mensagem_generica"], state="visible", timeout=timeout)
+    except PlaywrightTimeoutError:
+        return
+    if page.locator(SEL["modal_mensagem_generica_ok"]).count():
+        page.click(SEL["modal_mensagem_generica_ok"])
+        page.wait_for_selector(SEL["modal_mensagem_generica"], state="hidden", timeout=15000)
+
+
+def preparar_para_clicar(page: Page) -> None:
+    """Espera os modais conhecidos ("Processando...", confirmação de
+    download, mensagem genérica) sumirem antes de tentar clicar em algo.
+    Chamar antes de qualquer clique que pode ter ficado bloqueado por um
+    modal pendurado de uma ação anterior - achado ao vivo em 16/09/2026
+    (teste em escala maior): o clique na lupa de `baixar_pdf()` falhava
+    travado atrás de um desses modais, às vezes o de uma chamada BEM
+    anterior que nunca tinha sido fechada direito. As checagens aqui são
+    rápidas quando não há modal nenhum na tela (não atrasa o caso comum).
+    """
+    _esperar_modal_processando_sumir(page)
+    fechar_modal_confirmacao_download(page, exigir=False)
+    fechar_modal_mensagem_generica(page)
 
 
 def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = 30000) -> None:
@@ -226,7 +273,7 @@ def buscar(page: Page, tentativas: int = 3) -> None:
     assumir "sem resultado" cedo demais faz o robô pular processos de
     verdade.
     """
-    _esperar_modal_processando_sumir(page)
+    preparar_para_clicar(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["btn_pesquisar"])
     for tentativa in range(tentativas):
@@ -249,7 +296,7 @@ def info_paginacao(page: Page) -> tuple[int, int]:
 
 def ir_proxima_pagina(page: Page) -> None:
     page.wait_for_timeout(PAUSA_ENTRE_ACOES_MS)  # não martelar o portal - ver config.py
-    _esperar_modal_processando_sumir(page)
+    preparar_para_clicar(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["paginador_proxima"])
     _esperar_tabela_mudar(page, linha_anterior)
