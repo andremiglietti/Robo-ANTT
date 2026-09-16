@@ -17,7 +17,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 from robo_antt import checkpoint
-from robo_antt.config import OUTPUT_DIR, TIPOS_FISCALIZACAO
+from robo_antt.config import PLANILHA_PATH, TIPOS_FISCALIZACAO
 from robo_antt.download import baixar_pdf
 from robo_antt.extracao import (
     extrair_campos_pagina1,
@@ -40,8 +40,6 @@ from robo_antt.portal import (
     selecionar_tipo_fiscalizacao,
     buscar,
 )
-
-PLANILHA_PATH = OUTPUT_DIR / "relatorio_multas.xlsx"
 
 
 def extrair_todos_campos(caminho_pdf: Path) -> dict:

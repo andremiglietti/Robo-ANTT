@@ -164,7 +164,7 @@ Robo-ANTT/
 ├── data/
 │   ├── sessao/               # sessao_antt.json (cookies — nunca versionar)
 │   ├── downloads/            # PDFs baixados, organizados por CNPJ/tipo de multa — nunca versionar
-│   └── output/                # relatorio_multas.xlsx + checkpoint.json — ainda local, falta apontar pra pasta real do SharePoint (ver "Próximos passos")
+│   └── output/                # checkpoint.json (estado interno do robô — local de propósito, não sincroniza)
 └── docs/                    # material de apoio e planejamento
     ├── checklist_robo_antt.md
     ├── cronograma_robo_antt_3.md      # cronograma vigente (substitui a versão anterior)
@@ -175,6 +175,14 @@ Robo-ANTT/
 ```
 
 Ambiente Python: `.venv` criado com Python 3.13; dependências em `requirements.txt`; navegador Chromium do Playwright já baixado (`python -m playwright install chromium`). Para reativar o ambiente: `.venv\Scripts\activate` (PowerShell). Rodar o robô: `python -c "from robo_antt.orquestrador import rodar; rodar()"` (com `src/` no `PYTHONPATH`, ou de dentro de `src/`) — ainda sem um atalho/CLI amigável pra pessoa não-técnica (Dia 12 do cronograma).
+
+**Saída do robô (fora do repositório, pasta sincronizada com o OneDrive/SharePoint):**
+```
+C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT\
+├── Relatorio_Multas.xlsx     # planilha final (as 15 colunas)
+└── Autos\
+    └── {cnpj}\{tipo_multa}\{auto_infracao}.pdf
+```
 
 ## Arquivos já produzidos
 
@@ -209,7 +217,13 @@ Ambiente Python: `.venv` criado com Python 3.13; dependências em `requirements.
 - Bloco 6.3–6.5 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — tarefas de negócio, não técnicas.
 - Confirmação de disponibilidade recorrente da pessoa do login manual (Dia 1, item 1.2 parcial) — **ganhou urgência** com o achado de que a sessão dura menos de 40h (e nos testes de hoje, às vezes bem menos que isso).
 
-**O robô está funcionalmente completo de ponta a ponta** (login/sessão → varredura → download → extração → planilha → checkpoint), escrito e validado ao vivo contra o portal real e contra os 5 PDFs de exemplo — corrigindo cerca de 10 bugs reais ao longo do dia que só apareceram testando contra o sistema de verdade. O que falta agora é (a) apontar a saída pra pasta real sincronizada com o SharePoint (ainda grava em `data/output/` local), (b) itens de negócio do Bloco 6, e (c) rodar numa escala maior/real antes da entrega.
+**O robô está funcionalmente completo de ponta a ponta** (login/sessão → varredura → download → extração → planilha → checkpoint), escrito e validado ao vivo contra o portal real e contra os 5 PDFs de exemplo — corrigindo cerca de 10 bugs reais ao longo do dia que só apareceram testando contra o sistema de verdade. **A saída já está apontada pra pasta real sincronizada com o OneDrive/SharePoint** (ver abaixo). O que falta agora é (a) itens de negócio do Bloco 6, e (b) rodar numa escala maior/real antes da entrega.
+
+✅ **Caminho do OneDrive/SharePoint confirmado e configurado em 16/09/2026:** `C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT` (`SHAREPOINT_DIR` em `config.py`). Estrutura:
+  - `Dados ANTT\Relatorio_Multas.xlsx` — a planilha final (`PLANILHA_PATH`).
+  - `Dados ANTT\Autos\{cnpj}\{tipo_multa}\{auto}.pdf` — os PDFs baixados (`DOWNLOAD_DIR`).
+  - O checkpoint (`checkpoint.json`) continua **local** (`data/output/`, não sincronizado) — é memória interna do robô, não um entregável, e escrever nele a cada CNPJ geraria sincronização do OneDrive à toa.
+  - Testado (sem gastar outro clique real no portal): `planilha.py` grava corretamente em `Dados ANTT\Relatorio_Multas.xlsx`, e `download.already_downloaded()` resolve o caminho novo certo.
 
 ## Próximos passos sugeridos
 
@@ -219,7 +233,7 @@ Ambiente Python: `.venv` criado com Python 3.13; dependências em `requirements.
 4. ~~Extrair todos os campos do PDF (página 1, boleto, notificação)~~ — feito e validado em 16/09/2026, 100% dos campos corretos nos 5 exemplos (`src/robo_antt/extracao.py`).
 5. ~~Gerar a planilha Excel final~~ — feito e validado em 16/09/2026 (`src/robo_antt/planilha.py`).
 6. ~~Escrever o orquestrador (varredura → duplicidade → download → extração → planilha) com checkpoint/retentativa~~ — feito e validado ao vivo em 16/09/2026 (`src/robo_antt/orquestrador.py`, `src/robo_antt/checkpoint.py`).
-7. Trocar `OUTPUT_DIR`/`DOWNLOAD_DIR` (hoje `data/output/` e `data/downloads/` locais) pelo caminho real da pasta sincronizada com o OneDrive/SharePoint, quando esse caminho for confirmado (depende do Bloco 6.1–6.3, já resolvidos na máquina da pessoa responsável, mas o caminho exato ainda não foi passado pra dentro do código).
+7. ~~Trocar `DOWNLOAD_DIR`/`PLANILHA_PATH` pelo caminho real da pasta sincronizada com o OneDrive/SharePoint~~ — feito em 16/09/2026 (`C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT`, ver acima). Ainda falta confirmar que essa conta tem permissão de **escrita** ali de verdade (Bloco 6.3) - o teste de hoje só validou que o caminho existe e o robô sabe escrever nele localmente, não testou a sincronização de fato subir pro SharePoint.
 8. Rodar um teste em escala um pouco maior (alguns CNPJs, todos os tipos) antes de considerar rodar a empresa toda (~2,5-3h) - o teste de hoje foi só 1 CNPJ.
 9. Confirmar os itens pendentes do Bloco 6 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — em paralelo, não bloqueia o código.
 10. Dia 12 do cronograma: criar o atalho de execução (duplo clique) e um mini-guia de uso pra pessoa responsável, que não é técnica.

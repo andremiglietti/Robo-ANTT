@@ -2,8 +2,18 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SESSION_FILE = BASE_DIR / "data" / "sessao" / "sessao_antt.json"
-DOWNLOAD_DIR = BASE_DIR / "data" / "downloads"
+# Estado interno do robô (checkpoint) - fica LOCAL, não sincronizado com o
+# SharePoint: é só memória de execução do robô, não é entregável pra ninguém
+# ler, e escrever nele com frequência (a cada CNPJ) numa pasta do OneDrive
+# geraria sincronização o tempo todo à toa.
 OUTPUT_DIR = BASE_DIR / "data" / "output"
+
+# Pasta sincronizada com o OneDrive/SharePoint - aqui vai o que É entregável:
+# os PDFs baixados (organizados por CNPJ/tipo de multa) e a planilha final.
+# Caminho confirmado pelo usuário em 16/09/2026.
+SHAREPOINT_DIR = Path(r"C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT")
+DOWNLOAD_DIR = SHAREPOINT_DIR / "Autos"
+PLANILHA_PATH = SHAREPOINT_DIR / "Relatorio_Multas.xlsx"
 
 VISTAS_URL = "https://appweb1.antt.gov.br/spmi/Site/Acessos/VistasAoProcesso.aspx"
 
