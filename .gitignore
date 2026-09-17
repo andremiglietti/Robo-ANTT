@@ -14,6 +14,10 @@ data/output/*
 !data/downloads/.gitkeep
 !data/output/.gitkeep
 
+# Logs dos workers (arquitetura de múltiplos workers, 17/09/2026) — podem
+# conter números de auto/CNPJ, são locais/efêmeros, nunca versionar
+data/logs/
+
 # PDFs de autos de infração (reais ou exemplos/modelos) — documentos da empresa, nunca versionar
 *.pdf
 

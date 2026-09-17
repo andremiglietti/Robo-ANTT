@@ -6,6 +6,8 @@ e percorrer a tabela de resultados paginada. O download do PDF (clique na
 lupa/"Vistas") fica para uma etapa separada (dia 8 do cronograma) - aqui só
 lemos a listagem.
 """
+from pathlib import Path
+
 from playwright.sync_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from robo_antt.config import PAUSA_ENTRE_ACOES_MS, SEL, SESSION_FILE, TIPOS_FISCALIZACAO, VISTAS_URL
@@ -24,14 +26,17 @@ class PortalIndisponivelError(Exception):
 TEXTO_MANUTENCAO = "Estamos atualizando o sistema"
 
 
-def abrir_contexto(playwright, headless: bool = True) -> tuple:
-    if not SESSION_FILE.exists():
+def abrir_contexto(playwright, headless: bool = True, session_file: Path = SESSION_FILE) -> tuple:
+    """`session_file` opcional (default = sessão única de sempre) -
+    arquitetura de múltiplos workers (17/09/2026) passa a sessão própria de
+    cada worker aqui, pra cada processo usar seu próprio login/cookie."""
+    if not session_file.exists():
         raise FileNotFoundError(
-            f"Sessão não encontrada em {SESSION_FILE}. "
+            f"Sessão não encontrada em {session_file}. "
             "Rode scripts/teste_sessao_1_capturar.py para gerar uma sessão válida."
         )
     browser = playwright.chromium.launch(headless=headless)
-    context = browser.new_context(storage_state=str(SESSION_FILE))
+    context = browser.new_context(storage_state=str(session_file))
     page = context.new_page()
     return browser, context, page
 
@@ -294,12 +299,26 @@ def info_paginacao(page: Page) -> tuple[int, int]:
     return int(atual), int(total)
 
 
-def ir_proxima_pagina(page: Page) -> None:
+def ir_proxima_pagina(page: Page, tentativas: int = 3) -> None:
+    """⚠️ Retentativa adicionada em 17/09/2026 (mesmo padrão de buscar()):
+    um timeout aqui sem retentativa derrubava a paginação inteira no meio,
+    fazendo processar_cnpj() abandonar o resto das páginas silenciosamente -
+    causa raiz confirmada de CNPJs "achando" mais documentos numa
+    reexecução (ver CLAUDE.md, "garantia de varredura completa"). Só
+    reespera a MESMA resposta (não clica de novo) - o clique já foi
+    disparado no servidor, reclicar arriscaria pular ou duplicar página."""
     page.wait_for_timeout(PAUSA_ENTRE_ACOES_MS)  # não martelar o portal - ver config.py
     preparar_para_clicar(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["paginador_proxima"])
-    _esperar_tabela_mudar(page, linha_anterior)
+    for tentativa in range(tentativas):
+        try:
+            _esperar_tabela_mudar(page, linha_anterior)
+            return  # sucesso
+        except PlaywrightTimeoutError:
+            if tentativa == tentativas - 1:
+                raise  # esgotou as tentativas - sobe o erro (processar_cnpj trata como incompleto)
+            continue  # ainda "Processando..." - espera mais um pouco
 
 
 def iterar_paginas_resultado(page: Page):

@@ -17,6 +17,27 @@ PLANILHA_PATH = SHAREPOINT_DIR / "Relatorio_Multas.xlsx"
 
 VISTAS_URL = "https://appweb1.antt.gov.br/spmi/Site/Acessos/VistasAoProcesso.aspx"
 
+# Caminhos por worker (arquitetura de múltiplos workers, 17/09/2026 - ver
+# CLAUDE.md e o plano da sessão). Cada worker tem sua própria sessão,
+# checkpoint e planilha "fatia" LOCAL (nunca no SharePoint) - evita qualquer
+# concorrência de escrita entre processos. A consolidação numa planilha só
+# (a de verdade, no SharePoint) é feita à parte por
+# scripts/consolidar_planilhas.py, que é o único escritor desse arquivo
+# compartilhado.
+SESSAO_DIR = BASE_DIR / "data" / "sessao"
+
+
+def sessao_worker(worker_id: int) -> Path:
+    return SESSAO_DIR / f"sessao_worker_{worker_id}.json"
+
+
+def checkpoint_worker(worker_id: int) -> Path:
+    return OUTPUT_DIR / f"checkpoint_worker_{worker_id}.json"
+
+
+def planilha_worker(worker_id: int) -> Path:
+    return OUTPUT_DIR / f"planilha_worker_{worker_id}.xlsx"
+
 # Pausa deliberada (ms) entre ações que batem no servidor (troca de tipo de
 # fiscalização, próxima página, próximo CNPJ). Achado em 16/09/2026: baterias
 # de requisições em sequência rápida deixaram o portal visivelmente mais lento

@@ -91,6 +91,16 @@ def ja_registrado(wb: Workbook, auto_infracao: str) -> bool:
     return False
 
 
+def registro_da_linha(linha: tuple) -> dict:
+    """Inverso de adicionar_registro(): dado os valores de uma linha da
+    planilha (na ordem de COLUNAS), devolve o dict com as chaves de campo
+    (auto_infracao, cnpj, valor, etc.). Usado por
+    scripts/consolidar_planilhas.py pra reler as planilhas-fatia de cada
+    worker (arquitetura de múltiplos workers, 17/09/2026) e mesclar na
+    planilha final com adicionar_registro()."""
+    return {_CAMPO_POR_COLUNA[coluna]: valor for coluna, valor in zip(COLUNAS, linha)}
+
+
 def adicionar_registro(wb: Workbook, registro: dict) -> None:
     """Adiciona uma linha nova com os dados de uma multa. `registro` é um
     dict com as chaves em _CAMPO_POR_COLUNA.values() (auto_infracao, cnpj,
