@@ -11,7 +11,13 @@ Fluxo por CNPJ, por tipo de fiscalização, por página de resultado:
   próximo CNPJ. Salva a planilha e o checkpoint a cada CNPJ concluído (não
   só no final), pra não perder o progresso se algo interromper no meio de
   uma varredura longa (pode levar horas pra empresa toda - ver CLAUDE.md).
+
+Acompanhamento visual (17/09/2026): todo print aqui usa flush=True e mostra
+"CNPJ X/N" e "Tipo Y/7" - dá pra acompanhar ao vivo rodando no terminal, ou
+ler os logs depois (nenhuma informação de progresso fica só numa tela que
+se apaga).
 """
+import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -42,6 +48,24 @@ from robo_antt.portal import (
 )
 
 
+def _log(msg: str) -> None:
+    """print com flush - sem isso, rodando em segundo plano/redirecionado
+    pra arquivo, as linhas só apareciam depois que o processo inteiro
+    terminava (achado ao vivo em 16/09/2026), o que inutiliza qualquer
+    acompanhamento em tempo real."""
+    print(msg, flush=True)
+
+
+def _formatar_duracao(segundos: float) -> str:
+    minutos, seg = divmod(int(segundos), 60)
+    horas, minutos = divmod(minutos, 60)
+    if horas:
+        return f"{horas}h{minutos:02d}m{seg:02d}s"
+    if minutos:
+        return f"{minutos}m{seg:02d}s"
+    return f"{seg}s"
+
+
 def extrair_todos_campos(caminho_pdf: Path) -> dict:
     """Roda a extração completa (página 1 + boleto + notificação, se
     existirem) e devolve um dict só, pronto pra virar uma linha da planilha
@@ -61,15 +85,19 @@ def extrair_todos_campos(caminho_pdf: Path) -> dict:
     return campos
 
 
-def processar_linha(page, row: dict, estado: dict, wb) -> None:
+def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "") -> str:
     """Baixa (se precisar) e extrai os campos de 1 auto, e adiciona na
     planilha se ainda não estiver lá. Marca sucesso/falha no checkpoint -
     falha aqui é sempre de UM documento específico (PDF ilegível, campo que
     não bateu com nenhum padrão conhecido etc.), não de sessão/portal (essas
-    sobem como exceção e param a execução inteira, ver rodar())."""
+    sobem como exceção e param a execução inteira, ver rodar()).
+
+    Devolve "novo", "conhecido" ou "falha" - usado por processar_cnpj() pra
+    montar o resumo de progresso.
+    """
     auto = row["auto_infracao"]
     if checkpoint.ja_processado(estado, auto):
-        return
+        return "conhecido"  # não printa - CNPJs com muito histórico já conhecido ficariam poluídos de linha
 
     try:
         caminho_pdf = baixar_pdf(page, auto, row["cnpj"])
@@ -84,29 +112,67 @@ def processar_linha(page, row: dict, estado: dict, wb) -> None:
         if not ja_registrado(wb, auto):
             adicionar_registro(wb, registro)
         checkpoint.marcar_processado(estado, auto)
+        _log(f"{prefixo} {auto} -> novo ({campos.get('tipo_multa', '?')})")
+        return "novo"
     except (SessaoExpiradaError, PortalIndisponivelError):
         raise  # falha de infraestrutura - não é do documento, para tudo (ver rodar())
     except Exception as e:  # falha real deste documento - registra e segue pros próximos
         checkpoint.marcar_falha(estado, auto, str(e))
-        print(f"    [FALHA] {auto}: {e}")
+        _log(f"{prefixo} {auto} -> FALHA: {e}")
+        return "falha"
 
 
-def processar_cnpj(page, cnpj: dict, estado: dict, wb, tipos: dict = TIPOS_FISCALIZACAO) -> int:
+def processar_cnpj(
+    page,
+    cnpj: dict,
+    estado: dict,
+    wb,
+    tipos: dict = TIPOS_FISCALIZACAO,
+    indice_cnpj: int = 1,
+    total_cnpjs: int = 1,
+) -> tuple[int, int]:
     """Varre um CNPJ por todos os tipos de fiscalização informados,
     processando (baixando/extraindo/registrando) cada linha encontrada.
-    Devolve quantos autos novos foram processados com sucesso."""
+    Devolve (autos novos processados com sucesso, falhas ocorridas nesta
+    chamada) - falhas aqui conta o que ACONTECEU nesta execução, não é o
+    mesmo que `len(estado["falhas"])` no final (esse é só o número de falhas
+    ainda PENDENTES no checkpoint, que pode até diminuir numa execução se
+    falhas antigas forem resolvidas com sucesso - ver checkpoint.marcar_processado()).
+
+    `indice_cnpj`/`total_cnpjs` são só pra exibir "CNPJ X/N" no progresso -
+    não mudam o comportamento.
+    """
     selecionar_cnpj(page, cnpj["indice"])
     processados_antes = len(estado["processados"])
+    total_tipos = len(tipos)
+    falhas_cnpj = 0
 
-    for tipo_value, tipo_nome in tipos.items():
+    for indice_tipo, (tipo_value, tipo_nome) in enumerate(tipos.items(), start=1):
+        prefixo = f"  [CNPJ {indice_cnpj}/{total_cnpjs} | Tipo {indice_tipo}/{total_tipos}: {tipo_nome}]"
         page.wait_for_timeout(2000)  # não martelar o portal - ver PAUSA_ENTRE_ACOES_MS em config.py
         try:
             selecionar_tipo_fiscalizacao(page, tipo_value)
             buscar(page)
+            total_linhas = 0
+            novos = 0
+            falhas = 0
             for pagina in iterar_paginas_resultado(page):
                 for row in pagina:
+                    total_linhas += 1
                     row["cnpj"] = cnpj["value"]
-                    processar_linha(page, row, estado, wb)
+                    resultado = processar_linha(page, row, estado, wb, prefixo)
+                    if resultado == "novo":
+                        novos += 1
+                    elif resultado == "falha":
+                        falhas += 1
+            falhas_cnpj += falhas
+            if total_linhas:
+                _log(
+                    f"{prefixo} concluído: {total_linhas} processo(s) na tela "
+                    f"({novos} novo(s), {falhas} falha(s), resto já conhecido)"
+                )
+            else:
+                _log(f"{prefixo} sem processos")
         except (SessaoExpiradaError, PortalIndisponivelError):
             raise  # falha de infraestrutura - para tudo (ver rodar())
         except Exception as e:
@@ -117,17 +183,20 @@ def processar_cnpj(page, cnpj: dict, estado: dict, wb, tipos: dict = TIPOS_FISCA
             # um clique de paginação falhou por causa do modal de confirmação
             # do download anterior ainda aberto - já corrigido, mas mantém essa
             # rede de segurança pra outras falhas de navegação imprevistas).
-            print(f"    [FALHA NAVEGAÇÃO] {cnpj['texto']} / {tipo_nome}: {e}")
+            _log(f"{prefixo} [FALHA NAVEGAÇÃO] {e}")
 
-    return len(estado["processados"]) - processados_antes
+    return len(estado["processados"]) - processados_antes, falhas_cnpj
 
 
 def rodar(limite_cnpjs: int | None = None, tipos: dict = TIPOS_FISCALIZACAO) -> None:
     """Ponto de entrada principal. `limite_cnpjs` e `tipos` existem pra
     facilitar testar com um escopo pequeno antes de rodar a empresa toda
-    (que pode levar ~2,5-3h - ver CLAUDE.md)."""
+    (que pode levar horas - ver "achados" no CLAUDE.md sobre volume real)."""
+    inicio = time.time()
     estado = checkpoint.carregar()
     wb = abrir_ou_criar(PLANILHA_PATH)
+    processados_no_inicio = len(estado["processados"])
+    falhas_ocorridas = 0  # falhas que ACONTECERAM nesta execução (não confundir com len(estado["falhas"]) - ver processar_cnpj())
 
     with sync_playwright() as p:
         browser, context, page = abrir_contexto(p, headless=True)
@@ -136,27 +205,39 @@ def rodar(limite_cnpjs: int | None = None, tipos: dict = TIPOS_FISCALIZACAO) -> 
             cnpjs = listar_cnpjs(page)
             if limite_cnpjs:
                 cnpjs = cnpjs[:limite_cnpjs]
+            total_cnpjs = len(cnpjs)
 
-            for cnpj in cnpjs:
-                print(f"Varrendo {cnpj['texto']}...")
-                novos = processar_cnpj(page, cnpj, estado, wb, tipos)
-                print(f"  {novos} auto(s) novo(s) processado(s).")
+            for indice_cnpj, cnpj in enumerate(cnpjs, start=1):
+                _log(f"\n[CNPJ {indice_cnpj}/{total_cnpjs}] {cnpj['texto']}")
+                t_cnpj = time.time()
+                novos, falhas_cnpj = processar_cnpj(page, cnpj, estado, wb, tipos, indice_cnpj, total_cnpjs)
+                falhas_ocorridas += falhas_cnpj
+                dt_cnpj = time.time() - t_cnpj
+                _log(
+                    f"[CNPJ {indice_cnpj}/{total_cnpjs}] concluído: {novos} novo(s) em {_formatar_duracao(dt_cnpj)} | "
+                    f"total geral: {len(estado['processados'])} processados, {len(estado['falhas'])} falhas pendentes | "
+                    f"decorrido: {_formatar_duracao(time.time() - inicio)}"
+                )
                 # salva a cada CNPJ concluído - uma varredura completa pode
                 # levar horas, não queremos perder tudo se algo interromper
                 salvar_planilha(wb, PLANILHA_PATH)
                 checkpoint.salvar(estado)
 
         except (SessaoExpiradaError, PortalIndisponivelError) as e:
-            print(f"\n[PAROU] {e}")
+            _log(f"\n[PAROU] {e}")
         finally:
             salvar_planilha(wb, PLANILHA_PATH)
             checkpoint.salvar(estado)
             browser.close()
 
-    print(f"\nPlanilha: {PLANILHA_PATH}")
-    print(f"Processados no total (histórico completo): {len(estado['processados'])}")
+    _log("\n=== RESUMO DA EXECUÇÃO ===")
+    _log(f"Planilha: {PLANILHA_PATH}")
+    _log(f"Novos processados nesta execução: {len(estado['processados']) - processados_no_inicio}")
+    _log(f"Total processados (histórico completo): {len(estado['processados'])}")
+    _log(f"Falhas ocorridas nesta execução: {falhas_ocorridas}")
     if estado["falhas"]:
-        print(f"Falhas pendentes: {len(estado['falhas'])} (ver {checkpoint.CHECKPOINT_FILE})")
+        _log(f"Falhas pendentes: {len(estado['falhas'])} (ver {checkpoint.CHECKPOINT_FILE})")
+    _log(f"Tempo total desta execução: {_formatar_duracao(time.time() - inicio)}")
 
 
 if __name__ == "__main__":

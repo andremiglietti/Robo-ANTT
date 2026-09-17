@@ -55,8 +55,16 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     # antes de tentar clicar, senão o clique falha travado atrás dele.
     preparar_para_clicar(page)
 
+    # no_wait_after=True: esse clique dispara um DOWNLOAD, não uma navegação
+    # de página - sem isso, o .click() fica esperando por uma "navegação"
+    # que nunca conclui do jeito que ele espera, e trava até estourar os 30s
+    # de timeout (achado ao vivo em 17/09/2026, teste de amplitude: 55 de
+    # ~110 tentativas falharam exatamente com esse padrão - "click action
+    # done" seguido de "waiting for scheduled navigations to finish" até
+    # expirar). O download em si já é capturado por expect_download() logo
+    # abaixo, então não precisamos que o click espere por mais nada.
     with page.expect_download(timeout=60000) as download_info:
-        botao_visualizar.click()
+        botao_visualizar.click(no_wait_after=True)
     download = download_info.value
 
     # o portal abre um modal de confirmação depois do download que fica
