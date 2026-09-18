@@ -93,7 +93,7 @@ def listar_cnpjs(page: Page) -> list[dict]:
     return cnpjs
 
 
-def selecionar_cnpj(page: Page, indice: int) -> None:
+def selecionar_cnpj(page: Page, indice: int, valor_esperado: str | None = None, tentativas: int = 10) -> None:
     """Seleciona um CNPJ pelo índice (ver listar_cnpjs).
 
     O <select> real fica oculto (display:none) porque o portal usa o plugin
@@ -103,11 +103,40 @@ def selecionar_cnpj(page: Page, indice: int) -> None:
     subsequente trava (testado ao vivo em 16/09/2026). Por isso aqui a gente
     interage com o widget visível, igual um humano faria: clica pra abrir e
     clica na opção certa pelo data-option-array-index.
+
+    ⚠️ Achado ao vivo em 18/09/2026: trocar de CNPJ dispara um postback
+    pesado no servidor (o mesmo que mostra o modal "Processando...") - um
+    tempo fixo de espera (300ms) não é sempre suficiente pra esse postback
+    assentar, dado que o portal já provou variar de 8s a 90s de resposta ao
+    longo do dia. Sem confirmar de verdade, uma busca podia rodar contra um
+    CNPJ ainda não totalmente trocado no servidor e voltar "vazia" por
+    engano, SEM lançar nenhum erro - uma falha silenciosa que a garantia de
+    varredura completa não detecta (só pega exceções, não resultado errado
+    sem aviso). Por isso, quando `valor_esperado` é passado, essa função
+    ESPERA DE VERDADE (até `tentativas`×500ms) o `<select>` real (não só o
+    widget visível) refletir o CNPJ esperado antes de devolver - e levanta
+    erro se não confirmar, em vez de seguir em frente sem saber se colou.
+    `valor_esperado=None` mantém o comportamento antigo (só a espera fixa),
+    usado só por `varrer_cnpj()` (função antiga, não usada pelo orquestrador
+    atual).
     """
     preparar_para_clicar(page)
     page.click(SEL["representado_chosen"])
     page.click(f'{SEL["representado_chosen"]} li[data-option-array-index="{indice}"]')
-    page.wait_for_timeout(300)
+
+    if valor_esperado is None:
+        page.wait_for_timeout(300)
+        return
+
+    atual = None
+    for _ in range(tentativas):
+        atual = page.locator(SEL["representado"]).input_value()
+        if atual == valor_esperado:
+            return
+        page.wait_for_timeout(500)
+    raise ValueError(
+        f"CNPJ não confirmado no <select> depois de esperar - esperado {valor_esperado!r}, visto {atual!r}"
+    )
 
 
 def selecionar_tipo_fiscalizacao(page: Page, tipo_value: str) -> None:
@@ -302,7 +331,7 @@ def info_paginacao(page: Page) -> tuple[int, int]:
 def ir_proxima_pagina(page: Page, tentativas: int = 3) -> None:
     """⚠️ Retentativa adicionada em 17/09/2026 (mesmo padrão de buscar()):
     um timeout aqui sem retentativa derrubava a paginação inteira no meio,
-    fazendo processar_cnpj() abandonar o resto das páginas silenciosamente -
+    fazendo o orquestrador abandonar o resto das páginas silenciosamente -
     causa raiz confirmada de CNPJs "achando" mais documentos numa
     reexecução (ver CLAUDE.md, "garantia de varredura completa"). Só
     reespera a MESMA resposta (não clica de novo) - o clique já foi
@@ -317,7 +346,7 @@ def ir_proxima_pagina(page: Page, tentativas: int = 3) -> None:
             return  # sucesso
         except PlaywrightTimeoutError:
             if tentativa == tentativas - 1:
-                raise  # esgotou as tentativas - sobe o erro (processar_cnpj trata como incompleto)
+                raise  # esgotou as tentativas - sobe o erro (_tentar_tipo trata como incompleto, ver orquestrador.py)
             continue  # ainda "Processando..." - espera mais um pouco
 
 
