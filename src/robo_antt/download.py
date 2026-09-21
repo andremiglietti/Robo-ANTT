@@ -12,6 +12,7 @@ from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from robo_antt.config import DOWNLOAD_DIR, SEL
 from robo_antt.extracao import extrair_texto_pagina1, identificar_tipo_multa
+from robo_antt.io_seguro import substituir_com_retentativa
 from robo_antt.portal import fechar_modal_confirmacao_download, preparar_para_clicar
 
 
@@ -173,6 +174,6 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
 
     destino_final = DOWNLOAD_DIR / cnpj / tipo_multa / f"{auto_infracao}.pdf"
     destino_final.parent.mkdir(parents=True, exist_ok=True)
-    destino_tmp.replace(destino_final)
+    substituir_com_retentativa(destino_tmp, destino_final)
 
     return destino_final

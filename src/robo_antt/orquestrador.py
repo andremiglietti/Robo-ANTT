@@ -25,6 +25,17 @@ Acompanhamento visual (17/09/2026): todo print aqui usa flush=True e mostra
 "Item X/N" (a combinação CNPJ×tipo atual) - dá pra acompanhar ao vivo
 rodando no terminal, ou ler os logs depois (nenhuma informação de progresso
 fica só numa tela que se apaga).
+
+Garantias de completude, em duas frentes independentes (ver
+"=== VERIFICAÇÃO DE COMPLETUDE ===" no final do log): (1) PAGINAÇÃO - toda
+combinação CNPJ×tipo incompleta (busca/paginação interrompida por erro) é
+retentada automaticamente até 3 vezes dentro da mesma execução; (2)
+DOCUMENTO - toda falha de download/extração com CNPJ+tipo conhecido (ver
+checkpoint.marcar_falha()/falhas_retentaveis(), 19/09/2026) também é
+retentada diretamente até 3 vezes, sem depender de a combinação ser
+revisitada por acaso numa execução futura (achado ao vivo: mudar o número
+de workers entre execuções podia deixar falhas de documento pendentes pra
+sempre, sem nenhum erro).
 """
 import sys
 import time
@@ -34,7 +45,7 @@ from playwright.sync_api import sync_playwright
 
 from robo_antt import checkpoint
 from robo_antt.config import PAUSA_ENTRE_ACOES_MS, PLANILHA_PATH, SESSION_FILE, TIPOS_FISCALIZACAO
-from robo_antt.download import TabelaInvalidadaError, baixar_pdf
+from robo_antt.download import TabelaInvalidadaError, already_downloaded, baixar_pdf
 from robo_antt.extracao import (
     extrair_campos_pagina1,
     extrair_campos_boleto,
@@ -107,7 +118,26 @@ def extrair_todos_campos(caminho_pdf: Path) -> dict:
     return campos
 
 
-def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "") -> str:
+def _registrar(wb, auto: str, caminho_pdf: Path, row: dict) -> dict:
+    """Extrai os campos do PDF e adiciona a linha na planilha. Assume que
+    quem chamou já conferiu que a linha ainda não existe (ver
+    processar_linha()) - não checa `ja_registrado()` de novo aqui, porque
+    extrair os campos (ler o PDF inteiro, achar a página do boleto etc.) já
+    é o trabalho caro que a checagem em processar_linha() existe pra evitar
+    repetir à toa."""
+    campos = extrair_todos_campos(caminho_pdf)
+    registro = {
+        "link_arquivo": str(caminho_pdf),
+        "numero_processo": row["numero_processo"],
+        "auto_infracao": auto,
+        "cnpj": row["cnpj"],
+        **campos,
+    }
+    adicionar_registro(wb, registro)
+    return campos
+
+
+def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "", tipo_value: str | None = None) -> str:
     """Baixa (se precisar) e extrai os campos de 1 auto, e adiciona na
     planilha se ainda não estiver lá. Marca sucesso/falha no checkpoint -
     falha aqui é sempre de UM documento específico (PDF ilegível, campo que
@@ -118,30 +148,51 @@ def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "") -> str
 
     Devolve "novo", "conhecido" ou "falha" - usado por _tentar_tipo() pra
     montar o resumo de progresso.
+
+    `tipo_value` (19/09/2026): repassado só pra marcar_falha() saber ONDE
+    essa falha aconteceu (junto com row["cnpj"]) - permite retentar essa
+    falha diretamente depois, sem depender de a mesma combinação ser
+    revisitada por acaso (ver checkpoint.falhas_retentaveis()).
     """
     auto = row["auto_infracao"]
     if checkpoint.ja_processado(estado, auto):
         return "conhecido"  # não printa - CNPJs com muito histórico já conhecido ficariam poluídos de linha
 
+    # ⚠️ Achado ao vivo em 18/09/2026: o checkpoint é isolado POR WORKER (e
+    # a partição de `total_workers` pode ser diferente de uma execução pra
+    # outra) - um auto pode já ter sido baixado antes (por outro worker, ou
+    # numa execução anterior à própria arquitetura de workers) sem que o
+    # checkpoint DESTE worker saiba disso. `already_downloaded()` checa o
+    # arquivo no disco direto - é a fonte de verdade de "já existe",
+    # independente de qual checkpoint processou.
+    #
+    # ⚠️ Segundo achado no mesmo dia (pergunta direta do usuário: "isso não
+    # acaba levando mais tempo?"): baixar de novo já era evitado desde cedo
+    # hoje (mesma checagem já existia dentro de baixar_pdf()) - mas
+    # REEXTRAIR os campos do PDF (ler o texto inteiro, achar a página do
+    # boleto etc.) continuava acontecendo à toa pra todo documento já
+    # conhecido, em TODA reexecução de manutenção - numa segunda varredura,
+    # a maioria dos documentos cai nesse caminho, então esse desperdício
+    # soma bastante. Corrigido: só extrai/registra de verdade se a linha
+    # ainda não estiver NESTA planilha (`ja_registrado()`) - se já estiver,
+    # nem abre o PDF de novo.
+    existente = already_downloaded(auto, row["cnpj"])
+    if existente:
+        if not ja_registrado(wb, auto):
+            _registrar(wb, auto, existente, row)
+        checkpoint.marcar_processado(estado, auto)
+        return "conhecido"  # não printa - documento já conhecido, mesmo que de outro worker/execução
+
     try:
         caminho_pdf = baixar_pdf(page, auto, row["cnpj"])
-        campos = extrair_todos_campos(caminho_pdf)
-        registro = {
-            "link_arquivo": str(caminho_pdf),
-            "numero_processo": row["numero_processo"],
-            "auto_infracao": auto,
-            "cnpj": row["cnpj"],
-            **campos,
-        }
-        if not ja_registrado(wb, auto):
-            adicionar_registro(wb, registro)
+        campos = _registrar(wb, auto, caminho_pdf, row)
         checkpoint.marcar_processado(estado, auto)
         _log(f"{prefixo} {auto} -> novo ({campos.get('tipo_multa', '?')})")
         return "novo"
     except (SessaoExpiradaError, PortalIndisponivelError, TabelaInvalidadaError):
         raise  # falha de infraestrutura - não é do documento, para tudo (ver rodar())
     except Exception as e:  # falha real deste documento - registra e segue pros próximos
-        checkpoint.marcar_falha(estado, auto, str(e))
+        checkpoint.marcar_falha(estado, auto, str(e), cnpj=row["cnpj"], tipo_value=tipo_value)
         _log(f"{prefixo} {auto} -> FALHA: {e}")
         return "falha"
 
@@ -170,7 +221,7 @@ def _tentar_tipo(page, cnpj: dict, tipo_value: str, tipo_nome: str, estado: dict
             for row in pagina:
                 total_linhas += 1
                 row["cnpj"] = cnpj["value"]
-                resultado = processar_linha(page, row, estado, wb, prefixo)
+                resultado = processar_linha(page, row, estado, wb, prefixo, tipo_value)
                 if resultado == "novo":
                     novos += 1
                 elif resultado == "falha":
@@ -325,6 +376,15 @@ def rodar(
                 cnpjs = [c for c in cnpjs if c["value"] in cnpjs_especificos]
             if limite_cnpjs:
                 cnpjs = cnpjs[:limite_cnpjs]
+            # usado pela retentativa de falhas de documento (ver abaixo) pra
+            # achar o dict completo (indice/texto) de um CNPJ a partir só do
+            # valor gravado numa falha antiga - ainda não filtrado por
+            # worker (só por limite_cnpjs/cnpjs_especificos, que definem o
+            # escopo pretendido desta execução), então uma falha registrada
+            # por ESTE checkpoint sempre é encontrada aqui, mesmo que a
+            # combinação CNPJ×tipo dela caia num "worker" diferente sob a
+            # partição de hoje.
+            cnpjs_por_valor = {c["value"]: c for c in cnpjs}
 
             # Particiona por CNPJ×TIPO, não por CNPJ inteiro (18/09/2026, ver
             # CLAUDE.md e _processar_item()) - espalha o peso de CNPJs com
@@ -406,6 +466,56 @@ def rodar(
                 checkpoint.salvar(estado, checkpoint_file)
                 tentativa_extra += 1
 
+            # Retentativa DIRECIONADA de falhas de documento pendentes
+            # (19/09/2026 - pedido explícito do usuário: "o programa precisa
+            # resolver todas as pendências", ver CLAUDE.md). Achado ao vivo
+            # no mesmo dia: sem isso, uma falha só era retentada se a MESMA
+            # combinação CNPJ×tipo fosse revisitada por acaso numa execução
+            # futura (ex.: mesmo worker/partição de quando ela aconteceu) -
+            # confirmado que mudar `total_workers` entre execuções podia
+            # deixar falhas presas indefinidamente, sem erro nenhum (71
+            # falhas continuaram em 71 depois de rodar com um particionamento
+            # diferente). Agora usa o CNPJ+tipo gravado em marcar_falha() (ver
+            # checkpoint.falhas_retentaveis()) pra ir direto nas combinações
+            # certas, reaproveitando _processar_item() (mesmo caminho testado
+            # de sempre) - não é uma "retentativa só desse auto": reabre a
+            # busca inteira daquele CNPJ×tipo, que processa de novo TODAS as
+            # linhas da página (a maioria já conhecida, pula rápido), e só
+            # tenta baixar de verdade os autos que ainda não têm sucesso
+            # registrado - inclusive pode achar documento novo genuíno de
+            # brinde, sem custo extra.
+            falhas_iniciais = checkpoint.falhas_retentaveis(estado)
+            if falhas_iniciais:
+                combinacoes = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in falhas_iniciais}
+                _log(
+                    f"\n{rotulo_worker}=== Retentando {len(falhas_iniciais)} falha(s) de documento pendente(s) "
+                    f"({len(combinacoes)} combinação(ões) CNPJ×tipo) ==="
+                )
+                tentativa_falha = 1
+                while combinacoes and tentativa_falha <= 3:
+                    pendentes_combo = combinacoes
+                    _log(f"{rotulo_worker}--- Retentativa de falhas {tentativa_falha}/3 ---")
+                    for cnpj_value, tipo_value in pendentes_combo:
+                        cnpj_obj = cnpjs_por_valor.get(cnpj_value)
+                        if cnpj_obj is None:
+                            # CNPJ fora do escopo desta execução (ex.: limite_cnpjs
+                            # menor, ou CNPJ não existe mais no portal) - não dá
+                            # pra retentar aqui, fica pra uma execução com escopo
+                            # maior/mais atual.
+                            continue
+                        tipo_nome = tipos.get(tipo_value, tipo_value)
+                        prefixo = f"  {rotulo_worker}[RETRY FALHA {tentativa_falha}/3 | {cnpj_obj['texto']} | {tipo_nome}]"
+                        resultado = _processar_item(page, cnpj_obj, tipo_value, tipo_nome, estado, wb, prefixo)
+                        falhas_ocorridas += resultado["falhas"]
+                        if resultado["completo"]:
+                            checkpoint.marcar_varredura_completa(estado, cnpj_value, tipo_value)
+                    salvar_planilha(wb, planilha_path)
+                    checkpoint.salvar(estado, checkpoint_file)
+                    # recalcula com base no que REALMENTE continua falhando
+                    # depois desta rodada (não assume que tudo resolveu)
+                    combinacoes = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in checkpoint.falhas_retentaveis(estado)}
+                    tentativa_falha += 1
+
         except (SessaoExpiradaError, PortalIndisponivelError) as e:
             _log(f"\n{rotulo_worker}[PAROU] {e}")
         except Exception as e:
@@ -423,8 +533,26 @@ def rodar(
             # verdade.
             _log(f"\n{rotulo_worker}[PAROU] Erro inesperado, parando a execução com segurança: {e}")
         finally:
-            salvar_planilha(wb, planilha_path)
-            checkpoint.salvar(estado, checkpoint_file)
+            # ⚠️ Achado em 19/09/2026 (revisão de robustez pedida pelo
+            # usuário): estas duas chamadas já retentam sozinhas por conta
+            # própria (substituir_com_retentativa, até 5x/5s - ver
+            # io_seguro.py), mas se AINDA ASSIM falharem (lock persistente
+            # do OneDrive, disco cheio etc.), a exceção subia sem proteção
+            # própria - derrubava o processo ANTES de chegar em
+            # browser.close() (leak de processo do Chromium) e ANTES do
+            # relatório final (=== VERIFICAÇÃO DE COMPLETUDE ===) sequer ser
+            # impresso, escondendo justamente a informação que essa garantia
+            # existe pra nunca esconder. Cada chamada agora é isolada: se uma
+            # falhar, avisa alto e continua pras próximas, em vez de morrer
+            # em silêncio no meio da limpeza.
+            try:
+                salvar_planilha(wb, planilha_path)
+            except Exception as e:
+                _log(f"{rotulo_worker}[ATENÇÃO] Falha ao salvar a planilha no encerramento: {e}")
+            try:
+                checkpoint.salvar(estado, checkpoint_file)
+            except Exception as e:
+                _log(f"{rotulo_worker}[ATENÇÃO] Falha ao salvar o checkpoint no encerramento: {e}")
             browser.close()
 
     _log(f"\n{rotulo_worker}=== RESUMO DA EXECUÇÃO ===")
@@ -449,6 +577,7 @@ def rodar(
             "sessão expirada, portal indisponível, ou página travada mesmo depois da recuperação automática). "
             "Rode de novo pra continuar - o que já foi confirmado não será refeito."
         )
+    paginacao_completa = itens_listados and itens_tentados == total_itens and not todos_incompletos
     if todos_incompletos:
         _log(
             f"{rotulo_worker}[ATENÇÃO] {len(todos_incompletos)} combinação(ões) CNPJ×tipo AINDA incompleta(s) "
@@ -458,7 +587,45 @@ def rodar(
             _log(f"{rotulo_worker}   - {cnpj['texto']} | {tipo_nome}")
         _log(f"{rotulo_worker}   Rode de novo mais tarde pra tentar terminar essas - o resto já está confirmado.")
     elif itens_listados and itens_tentados == total_itens:
-        _log(f"{rotulo_worker}[OK] Todas as combinações CNPJ×tipo desta execução foram confirmadas 100% completas.")
+        _log(f"{rotulo_worker}[OK] Paginação 100% completa: todas as combinações CNPJ×tipo desta execução foram percorridas até o fim.")
+
+    # ⚠️ Achado em 19/09/2026 (revisão de robustez pedida pelo usuário):
+    # "paginação completa" (acima) só garante que VIMOS todas as linhas da
+    # tabela - não garante que baixamos/extraímos cada uma com sucesso. Um
+    # auto que a paginação viu mas cujo download falhou (ex.: PDF inválido,
+    # timeout de clique) fica em estado["falhas"], e o relatório de
+    # completude ficava mudo sobre isso - dava pra terminar com "[OK] 100%
+    # completas" na paginação e MESMO ASSIM faltar autos reais na planilha
+    # final. Agora isso é reportado explicitamente, separado da paginação.
+    if estado["falhas"]:
+        # ⚠️ Achado em 19/09/2026: a partir de hoje, falhas COM cnpj/tipo
+        # registrado (ver checkpoint.falhas_retentaveis()) já foram
+        # retentadas DIRETAMENTE dentro desta mesma execução (ver acima) -
+        # se ainda aparecem aqui, é porque a retentativa direcionada (até 3
+        # rodadas) não resolveu de verdade (ex.: PDF realmente corrompido no
+        # servidor), não porque ninguém tentou. Falhas SEM cnpj/tipo (só
+        # possíveis em checkpoints salvos antes de hoje, formato antigo) não
+        # têm como ser retentadas diretamente - só descobertas de novo por
+        # acaso numa varredura que passe pela combinação certa.
+        legadas = len(estado["falhas"]) - len(checkpoint.falhas_retentaveis(estado))
+        detalhe_legadas = (
+            f" ({legadas} delas sem CNPJ/tipo registrado - de checkpoints salvos antes de 19/09/2026, "
+            "não retentáveis diretamente; as demais JÁ foram retentadas nesta execução e continuam falhando.)"
+            if legadas
+            else " (já retentadas diretamente nesta execução, até 3 vezes cada, e continuam falhando - "
+            "provavelmente um problema real do documento no servidor, não passageiro.)"
+        )
+        _log(
+            f"{rotulo_worker}[ATENÇÃO] {len(estado['falhas'])} auto(s) VISTO(S) na tabela mas NÃO baixado(s)/"
+            "extraído(s) com sucesso (falha de documento específico - independe da paginação estar completa)."
+            f"{detalhe_legadas} A planilha desta execução pode NÃO ter 100% dos autos reais até essas falhas "
+            f"serem resolvidas (ver {checkpoint_file})."
+        )
+    elif paginacao_completa:
+        _log(
+            f"{rotulo_worker}[OK] Cobertura 100% completa confirmada: paginação percorrida por inteiro E "
+            "nenhuma falha de documento pendente."
+        )
 
 
 if __name__ == "__main__":

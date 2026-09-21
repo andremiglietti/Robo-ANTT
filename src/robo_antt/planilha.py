@@ -13,6 +13,8 @@ from pathlib import Path
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+from robo_antt.io_seguro import substituir_com_retentativa
+
 NOME_ABA = "Multas"
 
 # Ordem e nomes das colunas definidos com o usuário em 15/09/2026 (ver
@@ -120,4 +122,4 @@ def salvar(wb: Workbook, caminho_final: Path) -> None:
     caminho_final.parent.mkdir(parents=True, exist_ok=True)
     caminho_tmp = caminho_final.with_name(f"_tmp_{caminho_final.name}")
     wb.save(str(caminho_tmp))
-    caminho_tmp.replace(caminho_final)
+    substituir_com_retentativa(caminho_tmp, caminho_final)

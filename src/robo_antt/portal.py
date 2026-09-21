@@ -51,9 +51,24 @@ def abrir_tela_processos(page: Page, tentativas: int = 3) -> None:
     achado no mesmo dia: às vezes o portal inteiro está em manutenção
     ("Estamos atualizando o sistema..."), o que não tem nada a ver com a
     sessão - por isso checamos esse texto antes de concluir sessão expirada.
+
+    ⚠️ Bug real encontrado em 18/09/2026 (teste com 10 workers simultâneos -
+    mais carga agregada no servidor deixou isso bem mais provável de
+    acontecer): o `page.goto()` ficava FORA do bloco retentado - só o passo
+    seguinte (esperar o seletor aparecer) tinha as `tentativas` de verdade.
+    Se o `goto()` sozinho travasse ("Page.goto: Timeout 60000ms exceeded"),
+    a função desistia na 1ª tentativa, nunca chegando a tentar de novo,
+    apesar do parâmetro dizer "3 tentativas" - isso derrubava o worker
+    inteiro (via `_selecionar_cnpj_com_recuperacao()` em orquestrador.py,
+    que conta com essa função pra recuperar de um modal travado) por causa
+    de UMA navegação lenta isolada. Corrigido: `goto()` agora também está
+    dentro do laço de retentativa.
     """
     for tentativa in range(1, tentativas + 1):
-        page.goto(VISTAS_URL, wait_until="commit", timeout=60000)
+        try:
+            page.goto(VISTAS_URL, wait_until="commit", timeout=60000)
+        except PlaywrightTimeoutError:
+            continue  # a navegação em si não completou a tempo - tenta de novo (sem inspecionar a página: nesse ponto o estado dela não é confiável)
         try:
             page.wait_for_selector(SEL["representado"], state="attached", timeout=30000)
             return  # sucesso
