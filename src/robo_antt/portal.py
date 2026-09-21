@@ -269,6 +269,42 @@ def preparar_para_clicar(page: Page) -> None:
     fechar_modal_mensagem_generica(page)
 
 
+def _esperar_processamento_grande(page: Page, timeout_visivel: int = 5000, timeout_oculto: int = 600000) -> None:
+    """Espera o modal "Processando..." aparecer e REALMENTE sumir, com um
+    prazo bem mais generoso (10min) do que qualquer busca normal precisaria
+    - chamado logo depois de clicar em "Pesquisar" ou "próxima página",
+    ANTES da checagem normal de tabela (ver buscar()/ir_proxima_pagina()).
+
+    ⚠️ Achado ao vivo em 19 e 21/09/2026 (bug sério, reproduzido 2x): pra
+    combinações CNPJ×tipo com volume MUITO grande (confirmado: CNPJ
+    92.660.604/0013-16 + Excesso de Peso tem milhares de registros - só o
+    que já foi baixado são 687+ documentos), o servidor pode levar bem mais
+    que os ~90s que `_esperar_tabela_mudar()` cobre sozinha (3×30s) pra
+    montar a resposta. Quando esse prazo estourava, o código lia a tabela
+    como estava NAQUELE momento (ainda com dado da busca ANTERIOR, não a
+    atual) e concluía "sem resultado" - uma falha SILENCIOSA (nenhuma
+    exceção lançada) que a garantia de completude não detecta, porque a
+    combinação é marcada como "varredura completa" por engano. Confirmado
+    em 2 execuções sequenciais completas e independentes (dias diferentes),
+    sempre a mesma combinação, sempre o mesmo resultado vazio incorreto.
+
+    O modal "Processando..." é um sinal DIRETO de que o servidor ainda está
+    trabalhando (não uma suposição de tempo fixo) - por isso esperar ele
+    sumir de verdade, com um prazo bem maior, é mais confiável do que só
+    aumentar o número de tentativas da checagem de tabela. Se o modal nunca
+    aparecer (resposta rápida demais pra pegar o instante, ou combinação
+    genuinamente vazia sem processamento pesado), segue o jogo sem erro -
+    isso é só uma espera extra de segurança pras combinações pesadas, não
+    uma confirmação obrigatória pras combinações normais (não atrasa o
+    caso comum).
+    """
+    try:
+        page.wait_for_selector(SEL["modal_processando"], state="visible", timeout=timeout_visivel)
+        page.wait_for_selector(SEL["modal_processando"], state="hidden", timeout=timeout_oculto)
+    except PlaywrightTimeoutError:
+        pass
+
+
 def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = 30000) -> None:
     """Espera até a 1ª linha da tabela ser diferente de `valor_anterior`, ou
     até aparecer "Nenhum registro encontrado" - detecta o fim do AJAX sem
@@ -325,6 +361,7 @@ def buscar(page: Page, tentativas: int = 3) -> None:
     preparar_para_clicar(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["btn_pesquisar"])
+    _esperar_processamento_grande(page)  # ver docstring - protege combinações com volume enorme (19-21/09/2026)
     for tentativa in range(tentativas):
         try:
             _esperar_tabela_mudar(page, linha_anterior)
@@ -355,6 +392,7 @@ def ir_proxima_pagina(page: Page, tentativas: int = 3) -> None:
     preparar_para_clicar(page)
     linha_anterior = _primeira_linha(page)
     page.click(SEL["paginador_proxima"])
+    _esperar_processamento_grande(page)  # ver docstring em buscar() - mesma proteção pra páginas com volume enorme
     for tentativa in range(tentativas):
         try:
             _esperar_tabela_mudar(page, linha_anterior)

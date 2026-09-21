@@ -32,11 +32,28 @@ class TabelaInvalidadaError(Exception):
 
 
 def _mensagem_tabela_vazia(page: Page) -> str | None:
-    """Devolve o texto se a tabela agora mostra só 'Nenhum registro
-    encontrado' (1 linha só, com colspan - ver _esperar_tabela_mudar() em
-    portal.py), ou None se tem conteúdo de verdade."""
+    """Devolve um texto describendo o motivo se a tabela parece ter sido
+    invalidada (não tem mais conteúdo de verdade pra procurar uma linha),
+    ou None se ainda tem conteúdo normal.
+
+    Dois estados diferentes já vistos como "invalidada":
+    - 'Nenhum registro encontrado' (1 linha só, com colspan - ver
+      _esperar_tabela_mudar() em portal.py) - achado em 18/09/2026.
+    - ⚠️ Achado ao vivo em 21/09/2026: a tabela pode ficar com ZERO <tr>
+      (nem o placeholder "Nenhum registro encontrado" chega a aparecer) -
+      visto num surto de ~50 falhas idênticas ("a tela tem 0 linha(s)
+      agora") num CNPJ+tipo com volume grande, cada uma gastando ~15s
+      tentando achar a linha (3 tentativas de 5s) antes de desistir, em vez
+      de reconhecer de cara que a tabela inteira já não tinha mais nada de
+      útil - o mesmo desperdício que o caso "Nenhum registro encontrado" já
+      evitava, só que numa variação de estado do DOM que a checagem
+      original (exigia exatamente 1 linha) não cobria.
+    """
     todas = page.locator(f'{SEL["tabela_resultado"]} tr')
-    if todas.count() != 1:
+    total = todas.count()
+    if total == 0:
+        return "tabela sem nenhuma linha"
+    if total != 1:
         return None
     texto = todas.first.inner_text().strip()
     if todas.first.locator("td[colspan]").count():

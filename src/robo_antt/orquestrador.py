@@ -279,7 +279,9 @@ def _selecionar_cnpj_com_recuperacao(page, cnpj: dict, prefixo: str = "") -> Non
         selecionar_cnpj(page, cnpj["indice"], valor_esperado=cnpj["value"])
 
 
-def _processar_item(page, cnpj: dict, tipo_value: str, tipo_nome: str, estado: dict, wb, prefixo: str) -> dict:
+def _processar_item(
+    page, cnpj: dict, tipo_value: str, tipo_nome: str, estado: dict, wb, prefixo: str, forcar_reload: bool = False
+) -> dict:
     """Processa 1 combinação CNPJ+tipo: seleciona o CNPJ (recuperando a
     página do zero se ela estiver travada - ver
     _selecionar_cnpj_com_recuperacao()) e tenta a busca/paginação/download
@@ -315,7 +317,26 @@ def _processar_item(page, cnpj: dict, tipo_value: str, tipo_nome: str, estado: d
     exceção nenhuma). Corrigido: a pausa agora acontece AQUI, depois de
     selecionar o CNPJ e antes de tentar o tipo - dá tempo de verdade pro
     postback da troca de CNPJ assentar antes de qualquer busca.
+    ⚠️ Achado ao vivo em 21/09/2026 (validação do fix de busca com volume
+    grande, mesmo CNPJ 92.660.604/0013-16): mesmo com a busca em si
+    corrigida (ver _esperar_processamento_grande() em portal.py), o
+    `ir_proxima_pagina()` seguinte travava do MESMO jeito documentado em
+    18/09/2026 - o modal "Processando..." preso de vez, bloqueando o clique
+    de "próxima página" por dezenas de tentativas até estourar 30s. A
+    retentativa automática (`rodar()`) chamava `_processar_item()` de novo,
+    mas `_selecionar_cnpj_com_recuperacao()` SÓ recarrega a página se
+    `selecionar_cnpj()` EM SI falhar - e ela não falha aqui, porque o
+    travamento é da tela de RESULTADOS (paginação), não da seleção de CNPJ.
+    Resultado: a retentativa repetia a MESMA sequência na MESMA página já
+    quebrada, e falhava exatamente do mesmo jeito de novo (confirmado ao
+    vivo: RETRY 1/3 travou idêntico ao 1º erro). `forcar_reload=True`
+    (usado pelas retentativas em rodar(), nunca na 1ª tentativa) recarrega a
+    tela do zero incondicionalmente antes de selecionar o CNPJ, garantindo
+    um estado de JS limpo pra cada nova tentativa - não só quando a
+    seleção do CNPJ em si dá sinal de problema.
     """
+    if forcar_reload:
+        abrir_tela_processos(page)
     _selecionar_cnpj_com_recuperacao(page, cnpj, prefixo)
     page.wait_for_timeout(PAUSA_ENTRE_ACOES_MS)  # ver docstring acima - deixa o postback da troca de CNPJ assentar
     return _tentar_tipo(page, cnpj, tipo_value, tipo_nome, estado, wb, prefixo)
@@ -438,7 +459,12 @@ def rodar(
                 try:
                     for indice_pendente, (cnpj, tipo_value, tipo_nome) in enumerate(pendentes):
                         prefixo = f"  {rotulo_worker}[RETRY {tentativa_extra}/3 | {cnpj['texto']} | {tipo_nome}]"
-                        resultado = _processar_item(page, cnpj, tipo_value, tipo_nome, estado, wb, prefixo)
+                        # forcar_reload=True: ver achado de 21/09/2026 na docstring
+                        # de _processar_item() - uma combinação só fica "incompleta"
+                        # depois de já ter travado uma vez, então a página pode estar
+                        # num estado quebrado que só um reload de verdade resolve
+                        # (reselecionar o mesmo CNPJ sozinho não detecta/conserta isso).
+                        resultado = _processar_item(page, cnpj, tipo_value, tipo_nome, estado, wb, prefixo, forcar_reload=True)
                         falhas_ocorridas += resultado["falhas"]
                         if resultado["completo"]:
                             checkpoint.marcar_varredura_completa(estado, cnpj["value"], tipo_value)
@@ -505,7 +531,11 @@ def rodar(
                             continue
                         tipo_nome = tipos.get(tipo_value, tipo_value)
                         prefixo = f"  {rotulo_worker}[RETRY FALHA {tentativa_falha}/3 | {cnpj_obj['texto']} | {tipo_nome}]"
-                        resultado = _processar_item(page, cnpj_obj, tipo_value, tipo_nome, estado, wb, prefixo)
+                        # forcar_reload=True - mesmo motivo da retentativa de
+                        # paginação incompleta (ver docstring de _processar_item()):
+                        # essa combinação já teve um documento falhar antes, então
+                        # não custa garantir uma página limpa pra esta nova tentativa.
+                        resultado = _processar_item(page, cnpj_obj, tipo_value, tipo_nome, estado, wb, prefixo, forcar_reload=True)
                         falhas_ocorridas += resultado["falhas"]
                         if resultado["completo"]:
                             checkpoint.marcar_varredura_completa(estado, cnpj_value, tipo_value)
