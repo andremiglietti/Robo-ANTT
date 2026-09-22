@@ -155,7 +155,19 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     # done" seguido de "waiting for scheduled navigations to finish" até
     # expirar). O download em si já é capturado por expect_download() logo
     # abaixo, então não precisamos que o click espere por mais nada.
-    with page.expect_download(timeout=60000) as download_info:
+    #
+    # ⚠️ Timeout aumentado de 60s pra 180s em 22/09/2026 (ver CLAUDE.md,
+    # scripts/investigar_falhas_cargas.py): 16 falhas persistentes, todas
+    # com "Timeout 60000ms exceeded while waiting for event 'download'",
+    # concentradas no tipo de fiscalização "Cargas" (Piso Mínimo de Frete/
+    # Produtos Perigosos/Vale-Pedágio no disco). Investigação confirmou que
+    # esses documentos são sistematicamente muito mais pesados que a média
+    # (Cargas: média 67,9 páginas/mediana 77 vs. 22,0/14 dos outros tipos;
+    # alguns passam de 200 páginas e 27MB) - plausível que o servidor
+    # demore mais que 60s pra gerar/entregar um PDF desse tamanho. 180s é
+    # uma folga generosa e segura: só estica o tempo de espera em downloads
+    # genuinamente lentos, não muda nada pro caso comum (rápido).
+    with page.expect_download(timeout=180000) as download_info:
         botao_visualizar.click(no_wait_after=True)
     download = download_info.value
 
