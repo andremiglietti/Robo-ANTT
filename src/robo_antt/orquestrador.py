@@ -43,7 +43,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from robo_antt import checkpoint
+from robo_antt import checkpoint, io_seguro
 from robo_antt.config import PAUSA_ENTRE_ACOES_MS, PLANILHA_PATH, SESSION_FILE, TIPOS_FISCALIZACAO
 from robo_antt.download import TabelaInvalidadaError, already_downloaded, baixar_pdf
 from robo_antt.extracao import (
@@ -354,6 +354,46 @@ def _processar_item(
 
 
 def rodar(
+    limite_cnpjs: int | None = None,
+    tipos: dict = TIPOS_FISCALIZACAO,
+    session_file: Path = SESSION_FILE,
+    checkpoint_file: Path = checkpoint.CHECKPOINT_FILE,
+    planilha_path: Path = PLANILHA_PATH,
+    worker_id: int | None = None,
+    total_workers: int | None = None,
+    cnpjs_especificos: set[str] | None = None,
+) -> None:
+    """Ponto de entrada principal - fino de propósito, só cuida da trava de
+    concorrência (ver io_seguro.adquirir_trava()) antes de chamar
+    _rodar_impl() (mesma lógica de sempre, só renomeada pra não precisar
+    reindentar 300+ linhas nessa mudança).
+
+    ⚠️ Achado ao vivo em 22/09/2026 (ver CLAUDE.md): rodando a IHM
+    (scripts/executar_robo.py) e uma varredura manual ao mesmo tempo, os
+    dois acabaram usando o MESMO checkpoint_file/planilha_path (a IHM
+    sempre começa pelo worker 0) - 2 processos escrevendo no mesmo
+    arquivo, quase causou perda de progresso real (identificado e
+    encerrado a tempo naquela vez, mas por pouco). Agora levanta
+    `ChecklistEmUsoError` de cara se outro processo já estiver usando esse
+    MESMO `checkpoint_file`, em vez de deixar rolar e torcer.
+    """
+    trava = io_seguro.adquirir_trava(checkpoint_file)
+    try:
+        _rodar_impl(
+            limite_cnpjs=limite_cnpjs,
+            tipos=tipos,
+            session_file=session_file,
+            checkpoint_file=checkpoint_file,
+            planilha_path=planilha_path,
+            worker_id=worker_id,
+            total_workers=total_workers,
+            cnpjs_especificos=cnpjs_especificos,
+        )
+    finally:
+        io_seguro.liberar_trava(trava)
+
+
+def _rodar_impl(
     limite_cnpjs: int | None = None,
     tipos: dict = TIPOS_FISCALIZACAO,
     session_file: Path = SESSION_FILE,
