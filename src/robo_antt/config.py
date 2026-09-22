@@ -10,8 +10,21 @@ OUTPUT_DIR = BASE_DIR / "data" / "output"
 
 # Pasta sincronizada com o OneDrive/SharePoint - aqui vai o que É entregável:
 # os PDFs baixados (organizados por CNPJ/tipo de multa) e a planilha final.
-# Caminho confirmado pelo usuário em 16/09/2026.
-SHAREPOINT_DIR = Path(r"C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT")
+# Nome da biblioteca confirmado pelo usuário em 16/09/2026.
+#
+# ⚠️ Achado em 21-22/09/2026: até hoje esse caminho era ABSOLUTO e craft com
+# o usuário Windows de UM computador específico (`C:\Users\a847468\...`) -
+# rodando em outro computador/usuário (o robô pode ser usado por mais de 1
+# pessoa), o caminho simplesmente não existe. Corrigido pra usar
+# `Path.home()`, que resolve o prefixo do usuário sozinho - o NOME da
+# pasta sob o OneDrive é o mesmo pra qualquer pessoa com acesso à mesma
+# biblioteca do SharePoint, só o `C:\Users\<usuário>\` muda de máquina pra
+# máquina. Se essa pasta não existir na hora de rodar (ex.: sincronização
+# ainda não configurada, ou nome diferente por algum motivo), o robô vai
+# falhar de forma clara ao tentar gravar nela - ainda não temos um fluxo
+# de "perguntar o caminho manualmente na 1ª execução" (ver CLAUDE.md,
+# ideias pra IHM).
+SHAREPOINT_DIR = Path.home() / "OneDrive - Yara International ASA" / "Dados ANTT"
 DOWNLOAD_DIR = SHAREPOINT_DIR / "Autos"
 PLANILHA_PATH = SHAREPOINT_DIR / "Relatorio_Multas.xlsx"
 
