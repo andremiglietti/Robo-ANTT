@@ -69,7 +69,17 @@ def _celulas_da_pagina(pdf_path: Path, indice_pagina: int = 0) -> list[str]:
         for linha in tabela:
             for celula in linha:
                 if celula:
-                    celulas.append(celula.strip())
+                    # ⚠️ Achado em 22/09/2026 (ver CLAUDE.md): um subconjunto de
+                    # PDFs usa hífen suave (U+00AD, "soft hyphen" - invisível,
+                    # não é o "-" normal) como separador entre o número do
+                    # campo e o rótulo (ex.: "01\xadPLACA" em vez de
+                    # "01 - PLACA"). Como \xad não é espaço nem "-" de verdade,
+                    # as regex de _valor_do_campo() (que esperam um hífen
+                    # literal) não batiam nesses documentos - causava campos
+                    # inteiros (placa, data, descrição) voltando None em
+                    # documentos que na verdade TÊM o dado. Normaliza pra "-"
+                    # aqui, na origem, pra corrigir todo campo de uma vez.
+                    celulas.append(celula.replace("\xad", "-").strip())
     return celulas
 
 
@@ -128,7 +138,10 @@ def extrair_campos_pagina1(pdf_path: Path) -> dict:
         # CNPJ nunca tem espaço de verdade, então é seguro remover.
         cnpj_infrator = cnpj_infrator.replace(" ", "")
     return {
-        "placa": _valor_do_campo(celulas, r"^\d+\s*-\s*PLACA"),
+        # prefixo numérico ("01 - ") normalmente presente, mas opcional -
+        # achado em 22/09/2026: alguns layouts (tipo ainda não mapeado, cai
+        # em "Outros") têm a célula só "PLACA\n<valor>", sem numeração.
+        "placa": _valor_do_campo(celulas, r"^\d*\s*-?\s*PLACA"),
         "cnpj_infrator": cnpj_infrator,
         # "DATA" sozinho (a data da infração) - exato, pra não confundir com
         # "DATA DE EMISSÃO" ou "DATA DA EXPEDIÇÃO", que são campos diferentes.
