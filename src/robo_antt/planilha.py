@@ -153,6 +153,46 @@ def registro_da_linha(linha: tuple) -> dict:
     return {_CAMPO_POR_COLUNA[coluna]: valor for coluna, valor in zip(COLUNAS, linha)}
 
 
+def atualizar_campos_vazios(wb: Workbook, auto_infracao: str, campos_novos: dict) -> int:
+    """Preenche células VAZIAS de uma linha já existente (nunca sobrescreve
+    um valor que já está lá) com valores novos de `campos_novos` (mesmas
+    chaves de `_CAMPO_POR_COLUNA.values()` usadas em adicionar_registro()).
+    Devolve quantas células foram preenchidas (0 se o auto não existir na
+    planilha, ou se nenhum campo novo tinha valor pra uma célula vazia).
+
+    ⚠️ Existe pra backfill (22/09/2026, ver CLAUDE.md): quando uma correção
+    de extração passa a capturar um campo que antes vinha vazio (ex.: bug
+    do hífen suave), ou quando a busca traz um campo que a linha existente
+    nunca teve (ex.: "Situação", coluna acrescentada depois) - sem isso,
+    linhas já registradas ficam com a lacuna pra sempre, mesmo depois do
+    código melhorar (`processar_linha()` pula por completo qualquer auto já
+    conhecido - ver `ja_registrado()`).
+
+    É uma varredura linear (O(n)) - diferente de `ja_registrado()`, não tem
+    cache, porque isso é pensado pra rodar como manutenção ocasional (um
+    script de backfill), não no caminho quente de toda linha processada.
+    """
+    ws = _aba(wb)
+    for linha in ws.iter_rows(min_row=2, min_col=_COLUNA_AUTO_INFRACAO, max_col=_COLUNA_AUTO_INFRACAO):
+        if linha[0].value != auto_infracao:
+            continue
+        numero_linha = linha[0].row
+        preenchidos = 0
+        for coluna, campo in _CAMPO_POR_COLUNA.items():
+            if campo not in campos_novos:
+                continue
+            valor_novo = campos_novos[campo]
+            if valor_novo is None or (isinstance(valor_novo, str) and not valor_novo.strip()):
+                continue
+            indice_coluna = COLUNAS.index(coluna) + 1  # openpyxl é 1-based
+            celula = ws.cell(row=numero_linha, column=indice_coluna)
+            if celula.value is None or (isinstance(celula.value, str) and not celula.value.strip()):
+                celula.value = valor_novo
+                preenchidos += 1
+        return preenchidos
+    return 0
+
+
 def adicionar_registro(wb: Workbook, registro: dict) -> None:
     """Adiciona uma linha nova com os dados de uma multa. `registro` é um
     dict com as chaves em _CAMPO_POR_COLUNA.values() (auto_infracao, cnpj,
