@@ -110,16 +110,37 @@ def _aba(wb: Workbook) -> Worksheet:
     return wb.active
 
 
+# Nome do atributo usado pra pendurar o cache de autos já conhecidos
+# direto no objeto Workbook (ver ja_registrado()/adicionar_registro()) -
+# prefixado pra não colidir com nenhum atributo interno do openpyxl.
+_ATTR_CACHE_AUTOS = "_robo_antt_cache_autos"
+
+
 def ja_registrado(wb: Workbook, auto_infracao: str) -> bool:
     """Confere se esse auto já está na planilha, pra não duplicar linha numa
     execução futura do robô (a checagem de arquivo em download.py evita
     baixar o PDF de novo; esta aqui evita duplicar a linha na planilha,
-    inclusive se o PDF já existia de uma execução anterior)."""
-    ws = _aba(wb)
-    for linha in ws.iter_rows(min_row=2, min_col=_COLUNA_AUTO_INFRACAO, max_col=_COLUNA_AUTO_INFRACAO):
-        if linha[0].value == auto_infracao:
-            return True
-    return False
+    inclusive se o PDF já existia de uma execução anterior).
+
+    ⚠️ Otimização em 22/09/2026 (ver CLAUDE.md): antes, cada chamada
+    reescaneava TODAS as linhas já existentes (O(n) por auto checado) -
+    numa consolidação com milhares de linhas dos dois lados
+    (scripts/consolidar_planilhas.py), isso vira O(n×m) e fica lento à
+    toa. Agora o primeiro auto checado nesta `wb` monta um `set` uma
+    única vez (guardado no próprio objeto Workbook, então cada arquivo
+    aberto tem seu cache independente) - checagens seguintes na mesma
+    `wb` são O(1). `adicionar_registro()` mantém o cache atualizado
+    incrementalmente, sem precisar reconstruir do zero."""
+    cache = getattr(wb, _ATTR_CACHE_AUTOS, None)
+    if cache is None:
+        ws = _aba(wb)
+        cache = {
+            linha[0].value
+            for linha in ws.iter_rows(min_row=2, min_col=_COLUNA_AUTO_INFRACAO, max_col=_COLUNA_AUTO_INFRACAO)
+            if linha[0].value is not None
+        }
+        setattr(wb, _ATTR_CACHE_AUTOS, cache)
+    return auto_infracao in cache
 
 
 def registro_da_linha(linha: tuple) -> dict:
@@ -139,6 +160,13 @@ def adicionar_registro(wb: Workbook, registro: dict) -> None:
     ws = _aba(wb)
     linha = [registro.get(_CAMPO_POR_COLUNA[coluna]) for coluna in COLUNAS]
     ws.append(linha)
+    # mantém o cache de ja_registrado() em dia (só se ele já existir - se
+    # ninguém chamou ja_registrado() nesta wb ainda, não há cache pra
+    # atualizar, e tudo bem: ele nasce correto na 1ª chamada futura, já
+    # incluindo esta linha).
+    cache = getattr(wb, _ATTR_CACHE_AUTOS, None)
+    if cache is not None:
+        cache.add(registro.get("auto_infracao"))
 
 
 def salvar(wb: Workbook, caminho_final: Path) -> None:
