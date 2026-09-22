@@ -18,6 +18,18 @@ import pymupdf
 import pdfplumber
 
 
+def _para_float_brasileiro(valor: str) -> float:
+    """Converte "1.234,56" (formato brasileiro: ponto = milhar, vírgula =
+    decimal) pra float. Levanta ValueError se não for um número válido -
+    usado no fallback de subtração de extrair_campos_boleto()."""
+    return float(valor.replace(".", "").replace(",", "."))
+
+
+def _de_float_pra_brasileiro(valor: float) -> str:
+    """Inverso de _para_float_brasileiro() - sempre 2 casas decimais."""
+    return f"{valor:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
 def extrair_texto_pagina1(pdf_path: Path) -> str:
     """Extrai o texto da página 1 (onde ficam os campos estruturados do auto -
     ver CLAUDE.md, item 5 da arquitetura: página 1 sempre tem o essencial,
@@ -81,6 +93,24 @@ def _celulas_da_pagina(pdf_path: Path, indice_pagina: int = 0) -> list[str]:
                     # aqui, na origem, pra corrigir todo campo de uma vez.
                     celulas.append(celula.replace("\xad", "-").strip())
     return celulas
+
+
+def _valor_de_celula_rotulo_multilinha(celulas: list[str], padrao_rotulo: str) -> str | None:
+    """Como _valor_do_campo, mas pra células cujo RÓTULO em si ocupa mais de
+    1 linha (ex.: `"VALOR COM\nDESCONTO(R$)\n80,87"` - `_valor_do_campo()`
+    quebra no 1º "\n" e trataria "DESCONTO(R$)\n80,87" como o "valor", o que
+    é errado). Aqui a busca do rótulo é feita no texto inteiro da célula
+    (espaços normalizados), e o "valor" é sempre a ÚLTIMA linha da célula -
+    só devolve algo se essa última linha parecer mesmo um número (evita
+    devolver lixo se a suposição "última linha = valor" não bater)."""
+    for celula in celulas:
+        texto_normalizado = re.sub(r"\s+", " ", celula)
+        if not re.search(padrao_rotulo, texto_normalizado, re.IGNORECASE):
+            continue
+        candidato = celula.rsplit("\n", 1)[-1].strip()
+        if re.fullmatch(r"[\d.,]+", candidato):
+            return candidato
+    return None
 
 
 def _ultimo_valor_do_campo(celulas: list[str], padrao_rotulo: str) -> str | None:
@@ -206,13 +236,6 @@ def extrair_campos_boleto(pdf_path: Path, numero_pagina: int) -> dict:
 
     m_vencimento = re.search(r"DATA DO VENCIMENTO\s+(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
     m_codigo_barras = _PADRAO_CODIGO_BARRAS.search(texto)
-    # layout GRU descreve o desconto numa frase ("...conceder desconto de
-    # R$ 772,50...") em vez de um valor limpo logo após o rótulo da tabela -
-    # tenta essa forma primeiro, cai pro rótulo "Desconto/Abatimento" direto
-    # (layout do auto de trânsito clássico) se não achar.
-    m_desconto = re.search(r"desconto\s+de\s+R\$\s*([\d.,]+)", texto, re.IGNORECASE)
-    if not m_desconto:
-        m_desconto = re.search(r"Desconto\s*/\s*Abatimento\D{0,10}?([\d.,]+)", texto, re.IGNORECASE)
 
     # "DATA DE EMISSÃO" aparece 2x nessa página em alguns layouts (a do
     # documento fiscal, repetida, e a do boleto/notificação em si) - a do
@@ -223,19 +246,18 @@ def extrair_campos_boleto(pdf_path: Path, numero_pagina: int) -> dict:
     data_emissao_boleto = _ultimo_valor_do_campo(celulas, r"\d*\s*-?\s*DATA\s+(?:DE\s+)?EMISS.O")
 
     # ⚠️ Achado em 22/09/2026 (ver CLAUDE.md): "valor" usava regex no texto
-    # corrido (igual antes era feito aqui) - achado real: num sub-layout GRU
-    # de 3 colunas, o texto corrido intercala colunas, e entre o rótulo
-    # "VALOR TOTAL DA MULTA(R$)" e o valor de verdade (ex.: "146,12") aparece
-    # o CNPJ de uma coluna vizinha ("...PELO CNPJ Nº 92.660.604/0171-58") -
-    # a regex antiga capturava esse CNPJ por engano, um bug de CORREÇÃO (dado
-    # errado na planilha), não só de completude. Trocado pra extração por
-    # células (como já era feito pra data_emissao_boleto acima) - a célula
-    # "RÓTULO\nVALOR" nunca tem esse problema de intercalação de coluna.
-    # Cascata de rótulos, do mais específico ao mais genérico (visto nos
-    # layouts reais): "VALOR TOTAL DA MULTA" (clássico) -> "VALOR DA MULTA"
-    # (GRU produtos perigosos) -> "Valor" sozinho (rótulo genérico da ficha
-    # de compensação bancária - presente e correto em TODOS os exemplos
-    # vistos até agora, inclusive quando os 2 rótulos específicos faltam).
+    # corrido - achado real: num sub-layout GRU de 3 colunas, o texto corrido
+    # intercala colunas, e entre o rótulo "VALOR TOTAL DA MULTA(R$)" e o
+    # valor de verdade (ex.: "146,12") aparece o CNPJ de uma coluna vizinha
+    # ("...PELO CNPJ Nº 92.660.604/0171-58") - a regex antiga capturava esse
+    # CNPJ por engano, um bug de CORREÇÃO (dado errado na planilha), não só
+    # de completude. Trocado pra extração por células (como já era feito pra
+    # data_emissao_boleto acima) - a célula "RÓTULO\nVALOR" nunca tem esse
+    # problema de intercalação de coluna. Cascata de rótulos, do mais
+    # específico ao mais genérico (visto nos layouts reais): "VALOR TOTAL DA
+    # MULTA" (clássico) -> "VALOR DA MULTA" (GRU produtos perigosos) ->
+    # "Valor" sozinho (rótulo genérico da ficha de compensação bancária,
+    # presente e correto em TODOS os exemplos vistos até agora).
     valor = (
         _valor_do_campo(celulas, r"VALOR\s+TOTAL\s+DA\s+MULTA")
         or _valor_do_campo(celulas, r"VALOR\s+DA\s+MULTA")
@@ -245,10 +267,54 @@ def extrair_campos_boleto(pdf_path: Path, numero_pagina: int) -> dict:
         # célula pode vir com "R$ " embutido no valor (ex.: "VALOR DA MULTA\nR$ 1.400,00") - remove.
         valor = re.sub(r"R\$\s*", "", valor).strip()
 
+    # ⚠️ Achado em 22/09/2026 (mesma família do bug de "valor" acima): a
+    # regex de texto corrido pra "Desconto/Abatimento" também captura lixo
+    # em alguns layouts - achados reais: valor virando só "," (célula
+    # "2 - (-) Desconto / Abatimento" sem nenhum valor depois, num layout
+    # antigo) ou só "4" (fragmento truncado, layout GRU onde a célula
+    # "2 - (-) DESCONTO / ABATIMENTO\n420,00" tem o valor limpo, mas o texto
+    # corrido intercala algo entre o rótulo e o valor de verdade).
+    # Cascata: (1) célula "Desconto/Abatimento" direta - mais confiável,
+    # igual ao fix de "valor"; (2) frase "conceder desconto de R$ X" no
+    # texto corrido - necessária pro layout onde o boleto inteiro vem como
+    # 1 célula gigante sem separação rótulo/valor (ex.: piso_minimo.pdf);
+    # (3) rótulo "Desconto/Abatimento" no texto corrido; (4) cálculo por
+    # subtração (Valor - Valor com Desconto) - achado em 68 de 83 casos
+    # auditados: documentos antigos (numeração só numérica, ex.:
+    # "0001443878") têm a célula "Desconto/Abatimento" genuinamente SEM
+    # valor nenhum (nem no texto corrido) - só a célula "VALOR COM
+    # DESCONTO(R$)" tem um número de verdade, e o desconto em si (pela
+    # definição já confirmada em 15/09/2026: "valor do desconto, não o
+    # total já com desconto aplicado") precisa ser calculado.
+    # ⚠️ checa "tem pelo menos 1 dígito", não só "não é None" - uma célula
+    # sem valor nenhum depois do rótulo pode produzir uma string vazia-ish
+    # tipo "," (visto ao vivo), que é truthy em Python mas não é um número.
+    def _parece_numero(v: str | None) -> bool:
+        return bool(v) and bool(re.search(r"\d", v))
+
+    valor_desconto = _valor_do_campo(celulas, r"\d*\s*-?\s*DESCONTO\s*/\s*ABATIMENTO")
+    if not _parece_numero(valor_desconto):
+        m_desconto = re.search(r"desconto\s+de\s+R\$\s*([\d.,]+)", texto, re.IGNORECASE)
+        if not m_desconto:
+            m_desconto = re.search(r"Desconto\s*/\s*Abatimento\D{0,10}?([\d.,]+)", texto, re.IGNORECASE)
+        valor_desconto = m_desconto.group(1) if m_desconto else None
+    if not _parece_numero(valor_desconto) and valor:
+        valor_com_desconto = _valor_de_celula_rotulo_multilinha(celulas, r"VALOR\s+COM\s+DESCONTO")
+        if valor_com_desconto:
+            try:
+                diferenca = _para_float_brasileiro(valor) - _para_float_brasileiro(valor_com_desconto)
+                valor_desconto = _de_float_pra_brasileiro(diferenca)
+            except ValueError:
+                pass
+    if not _parece_numero(valor_desconto):
+        # nenhuma das 4 tentativas achou um número de verdade - devolve
+        # None (célula vazia na planilha) em vez de lixo tipo "," ou "4".
+        valor_desconto = None
+
     return {
         "data_vencimento": m_vencimento.group(1) if m_vencimento else None,
         "codigo_barras": m_codigo_barras.group().strip() if m_codigo_barras else None,
-        "valor_desconto": m_desconto.group(1) if m_desconto else None,
+        "valor_desconto": valor_desconto,
         "valor": valor,
         "data_emissao_boleto": data_emissao_boleto,
     }
