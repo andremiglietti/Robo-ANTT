@@ -57,6 +57,7 @@ from robo_antt.extracao import (
 )
 from robo_antt.planilha import abrir_ou_criar, adicionar_registro, ja_registrado, salvar as salvar_planilha
 from robo_antt.portal import (
+    LimiteResultadosError,
     PortalIndisponivelError,
     SessaoExpiradaError,
     abrir_contexto,
@@ -131,6 +132,7 @@ def _registrar(wb, auto: str, caminho_pdf: Path, row: dict) -> dict:
         "numero_processo": row["numero_processo"],
         "auto_infracao": auto,
         "cnpj": row["cnpj"],
+        "situacao": row["situacao"],  # 22/09/2026 - vem da tabela de busca, não do PDF (ver planilha.py)
         **campos,
     }
     adicionar_registro(wb, registro)
@@ -236,6 +238,15 @@ def _tentar_tipo(page, cnpj: dict, tipo_value: str, tipo_nome: str, estado: dict
         return {"novos": novos, "falhas": falhas, "completo": True}
     except (SessaoExpiradaError, PortalIndisponivelError):
         raise  # falha de infraestrutura - para tudo (ver rodar())
+    except LimiteResultadosError as e:
+        # ⚠️ Achado ao vivo em 22/09/2026 (ver CLAUDE.md): limite estrutural
+        # de 1000 resultados do portal, não uma falha passageira - retentar
+        # não resolve, mas ainda assim NÃO marca como "completo" (seria uma
+        # garantia falsa) - mensagem própria pra deixar claro que essa
+        # combinação específica precisa de decisão humana (ex.: escalar pra
+        # ANTT), não só "rodar de novo".
+        _log(f"{prefixo} [LIMITE DO PORTAL] {e}")
+        return {"novos": 0, "falhas": 0, "completo": False}
     except Exception as e:
         # falha ao navegar (busca ou paginação) pra ESSE tipo específico -
         # não é culpa de nenhum documento em particular pra marcar no

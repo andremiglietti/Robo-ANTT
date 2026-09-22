@@ -23,6 +23,24 @@ class PortalIndisponivelError(Exception):
     logar de novo."""
 
 
+class LimiteResultadosError(Exception):
+    """A busca atingiu o limite estrutural de 1000 resultados do portal (20
+    páginas × 50 linhas) - achado confirmado ao vivo em 22/09/2026 (ver
+    CLAUDE.md): clicando "próxima página" manualmente além da página 20
+    pra uma combinação com volume real muito grande, o link simplesmente
+    deixa de existir no DOM (`Timeout` esperando o elemento) - as páginas 1
+    a 20 trazem dados reais e distintos (não é bug de exibição), mas não há
+    nenhuma forma de ver além disso: o formulário de busca não tem filtro
+    de data nem qualquer outro jeito de fatiar a busca.
+
+    Diferente de qualquer outra falha - RETENTAR NÃO RESOLVE, porque não é
+    passageiro. Ainda assim é tratada como "incompleta" pela garantia de
+    completude (mesmo efeito prático - não é silenciosamente aceita como
+    "100% completa"), só que com mensagem própria pra deixar claro que essa
+    combinação específica provavelmente nunca vai fechar sozinha e precisa
+    de decisão humana (ex.: escalar pra ANTT) - ver iterar_paginas_resultado()."""
+
+
 TEXTO_MANUTENCAO = "Estamos atualizando o sistema"
 
 
@@ -415,6 +433,22 @@ def iterar_paginas_resultado(page: Page):
     percorrer - confirmado com o usuário em 16/09/2026 que esse número **não
     reflete a quantidade real de resultados** (aparece fixo mesmo com 0
     resultados). O sinal real de "acabou" é a próxima página vir vazia.
+
+    ⚠️ Achado mais forte em 22/09/2026: o "N" do paginador é sempre "20",
+    literalmente um placeholder fixo da interface - testado com 3 buscas de
+    volume bem diferente (1000+, 3 e 2 resultados), as 3 mostraram "de 20".
+    Usar isso como condição de PARADA do loop (`pagina_atual < total_paginas`,
+    versão antiga) fazia o código aceitar "terminei" exatamente na página 20
+    sem NUNCA tentar ir além - o pior cenário possível quando existem mais
+    de 1000 resultados reais (ver LimiteResultadosError acima): um falso
+    "100% completo" silencioso, sem nenhuma exceção. Corrigido: não usa mais
+    `info_paginacao()` pra decidir quando parar - só para quando a PRÓXIMA
+    página vem vazia de verdade (fim real dos dados) ou quando
+    `ir_proxima_pagina()` lança uma exceção (nesse caso, depois de já ter
+    percorrido 20 páginas cheias = 1000 linhas, é levantada
+    `LimiteResultadosError` no lugar da exceção genérica, pra dar um sinal
+    claro e específico - não é uma falha passageira, é o limite estrutural
+    do portal, confirmado ao vivo clicando manualmente além da página 20).
     """
     pagina = ler_pagina_atual(page)
     if not pagina or page.locator(SEL["paginador_info"]).count() == 0:
@@ -422,14 +456,24 @@ def iterar_paginas_resultado(page: Page):
         return
 
     yield pagina
-    pagina_atual, total_paginas = info_paginacao(page)
-    while pagina_atual < total_paginas:
-        ir_proxima_pagina(page)
+    paginas_vistas = 1
+    while True:
+        try:
+            ir_proxima_pagina(page)
+        except Exception as e:
+            if paginas_vistas >= 20:
+                raise LimiteResultadosError(
+                    f"A busca chegou a {paginas_vistas} página(s) (~{paginas_vistas * 50} resultados) e não "
+                    "foi possível avançar mais - provável limite estrutural de 1000 resultados por busca do "
+                    "portal (confirmado ao vivo em 22/09/2026, ver CLAUDE.md). Pode haver mais documentos "
+                    "reais além deste ponto que esta tela não expõe."
+                ) from e
+            raise
         pagina = ler_pagina_atual(page)
         if not pagina:
-            break  # "Nenhum registro encontrado" - não tem mais dados de verdade, apesar do paginador
+            break  # "Nenhum registro encontrado" - fim real dos dados
         yield pagina
-        pagina_atual, total_paginas = info_paginacao(page)
+        paginas_vistas += 1
 
 
 def varrer_busca_atual(page: Page) -> list[dict]:

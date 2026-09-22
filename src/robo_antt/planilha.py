@@ -37,6 +37,18 @@ COLUNAS = [
     "Placa",
     "Descrição da Infração",
     "Código de Barras",
+    # "Situação" (22/09/2026, pedido do usuário): vem de graça da tabela de
+    # busca (row["situacao"] em portal.ler_pagina_atual(), já capturada há
+    # dias mas descartada até agora). Acrescentada no FIM da lista (não
+    # reordenada pro meio) de propósito - não mexe na posição de nenhuma
+    # coluna já existente, então planilhas/filtros que a empresa já tenha
+    # montado em cima da ordem antiga continuam funcionando.
+    # ✅ Validado ao vivo (mesmo dia): amostra real mostrou 15 valores
+    # distintos - todo valor começando com "Arquivado" (Pago/Cancelado) é
+    # fechado, qualquer outro (Congelado, Notificação, Auto inscrito na
+    # Serasa, Recurso em julgamento, etc.) é aberto/em andamento - dá pra
+    # filtrar "multas ainda abertas" só com isso, sem cruzar com outra tela.
+    "Situação",
 ]
 
 # Mapeia o nome da coluna pro nome do campo usado no resto do código
@@ -57,6 +69,7 @@ _CAMPO_POR_COLUNA = {
     "Placa": "placa",
     "Descrição da Infração": "descricao_infracao",
     "Código de Barras": "codigo_barras",
+    "Situação": "situacao",
 }
 
 _COLUNA_AUTO_INFRACAO = COLUNAS.index("Auto de Infração") + 1  # openpyxl é 1-based
@@ -66,13 +79,29 @@ def abrir_ou_criar(caminho: Path) -> Workbook:
     """Abre a planilha existente (preservando o que já tem), ou cria uma nova
     com o cabeçalho, se ainda não existir."""
     if caminho.exists():
-        return load_workbook(str(caminho))
+        wb = load_workbook(str(caminho))
+        _completar_cabecalho(_aba(wb))
+        return wb
 
     wb = Workbook()
     ws = wb.active
     ws.title = NOME_ABA
     ws.append(COLUNAS)
     return wb
+
+
+def _completar_cabecalho(ws: Worksheet) -> None:
+    """Se a planilha já existia de antes de uma coluna nova ser acrescentada
+    em COLUNAS (ex.: 'Situação', 22/09/2026), completa o cabeçalho da aba já
+    aberta com as colunas que ainda faltam - sem mexer nas linhas já
+    gravadas (ficam em branco nessa coluna nova até serem reprocessadas).
+    Não faz nada se o cabeçalho já está em dia."""
+    cabecalho_atual = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    proxima_coluna = len(cabecalho_atual) + 1
+    for coluna in COLUNAS:
+        if coluna not in cabecalho_atual:
+            ws.cell(row=1, column=proxima_coluna, value=coluna)
+            proxima_coluna += 1
 
 
 def _aba(wb: Workbook) -> Worksheet:
