@@ -55,7 +55,7 @@ from robo_antt.extracao import (
     localizar_pagina_boleto,
     localizar_pagina_notificacao,
 )
-from robo_antt.planilha import abrir_ou_criar, adicionar_registro, ja_registrado, salvar as salvar_planilha
+from robo_antt.planilha import abrir_ou_criar, adicionar_registro, atualizar_campos_vazios, ja_registrado, salvar as salvar_planilha
 from robo_antt.portal import (
     LimiteResultadosError,
     PortalIndisponivelError,
@@ -139,6 +139,22 @@ def _registrar(wb, auto: str, caminho_pdf: Path, row: dict) -> dict:
     return campos
 
 
+def _atualizar_situacao_se_necessario(wb, auto: str, row: dict) -> None:
+    """Backfill de "Situação" pra autos já conhecidos - achado em
+    23/09/2026 (ver CLAUDE.md): esse campo vem de graça da tabela de
+    busca (não do PDF), mas antes só era gravado quando o auto era
+    processado pela PRIMEIRA vez - autos já registrados (a grande maioria
+    numa reexecução de manutenção) nunca tinham essa célula preenchida,
+    mesmo revisitando a mesma busca que já traz o valor. Chamado nos 2
+    caminhos de "já conhecido" de processar_linha() - custo desprezível
+    (só olha o dict/célula em memória, não toca no PDF nem no portal de
+    novo), então mantém QUALQUER varredura futura auto-atualizada, sem
+    precisar de um script de backfill dedicado pra manutenção contínua."""
+    situacao = row.get("situacao")
+    if situacao:
+        atualizar_campos_vazios(wb, auto, {"situacao": situacao})
+
+
 def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "", tipo_value: str | None = None) -> str:
     """Baixa (se precisar) e extrai os campos de 1 auto, e adiciona na
     planilha se ainda não estiver lá. Marca sucesso/falha no checkpoint -
@@ -158,6 +174,7 @@ def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "", tipo_v
     """
     auto = row["auto_infracao"]
     if checkpoint.ja_processado(estado, auto):
+        _atualizar_situacao_se_necessario(wb, auto, row)
         return "conhecido"  # não printa - CNPJs com muito histórico já conhecido ficariam poluídos de linha
 
     # ⚠️ Achado ao vivo em 18/09/2026: o checkpoint é isolado POR WORKER (e
@@ -182,6 +199,8 @@ def processar_linha(page, row: dict, estado: dict, wb, prefixo: str = "", tipo_v
     if existente:
         if not ja_registrado(wb, auto):
             _registrar(wb, auto, existente, row)
+        else:
+            _atualizar_situacao_se_necessario(wb, auto, row)
         checkpoint.marcar_processado(estado, auto)
         return "conhecido"  # não printa - documento já conhecido, mesmo que de outro worker/execução
 
