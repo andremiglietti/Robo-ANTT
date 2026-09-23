@@ -45,8 +45,36 @@ from executar_robo import (  # noqa: E402
     _status_legivel,
     config,
 )
+from relatorio_completude import calcular_completude  # noqa: E402
 
 _RE_PERCENTUAL = re.compile(r"^(\d+)% conclu")
+
+
+def _resumo_completude_legivel(resultado: dict) -> str:
+    """Traduz o dict de calcular_completude() (ver relatorio_completude.py)
+    pra 1-2 frases em português comum, sem termos técnicos - achado ao
+    vivo em 23/09/2026 (ver CLAUDE.md): a tela de conclusão dizia "peça
+    pra rodar scripts/relatorio_completude.py", pedindo pra pessoa
+    NÃO-técnica que usa essa tela recorrer a alguém que sabe rodar script -
+    contradiz o motivo dessa IHM existir. Agora a checagem roda sozinha,
+    automaticamente, e o resultado já aparece aqui em português."""
+    if "erro" in resultado:
+        return (
+            "Não foi possível confirmar se a varredura está 100% completa agora "
+            "(ex.: portal em manutenção ou sessão expirada) - rode este programa de "
+            "novo mais tarde pra conferir."
+        )
+    if resultado["cem_por_cento"]:
+        return "Confirmado: a varredura da empresa inteira está 100% completa - nenhuma multa real ficou de fora."
+
+    partes = []
+    if not resultado["paginacao_completa"]:
+        n = sum(len(v) for v in resultado["faltando_por_cnpj"].values())
+        partes.append(f"ainda falta verificar {n} combinação(ões) de CNPJ/tipo de multa")
+    if resultado["total_falhas"]:
+        partes.append(f"{resultado['total_falhas']} documento(s) específico(s) ainda não baixaram com sucesso")
+    detalhe = " e ".join(partes)
+    return f"Ainda não está 100% completo: {detalhe}. É só rodar este programa de novo que ele tenta terminar sozinho."
 
 
 def _percentual_de(status_texto: str) -> int:
@@ -208,7 +236,16 @@ class AppRobo(tk.Tk):
             self._fila.put(("status_geral", "Juntando os resultados de todos os workers na planilha final..."))
             _consolidar_planilha_final()
 
-            self._fila.put(("concluido", str(config.PLANILHA_PATH)))
+            self._fila.put(("status_geral", "Verificando se a varredura da empresa inteira já está 100% completa..."))
+            try:
+                resultado_completude = calcular_completude()
+            except FileNotFoundError:
+                # não deveria acontecer (acabamos de logar pelo menos 1 worker),
+                # mas por segurança trata como "não deu pra verificar agora".
+                resultado_completude = {"erro": "nenhuma sessão disponível"}
+            resumo_completude = _resumo_completude_legivel(resultado_completude)
+
+            self._fila.put(("concluido", str(config.PLANILHA_PATH), resumo_completude))
         except Exception as e:  # nunca deixa a thread de fundo morrer em silêncio
             self._fila.put(("erro", str(e)))
 
@@ -262,15 +299,14 @@ class AppRobo(tk.Tk):
             linha["label"].config(text=f"Worker {worker_id + 1}: {status}")
             linha["barra"]["value"] = _percentual_de(status)
         elif tipo == "concluido":
-            caminho_planilha = mensagem[1]
+            caminho_planilha, resumo_completude = mensagem[1], mensagem[2]
             self._label_status_geral.config(text="CONCLUÍDO")
             self._label_resultado_final.config(
                 text=(
                     f"Planilha final: {caminho_planilha}\n\n"
+                    f"{resumo_completude}\n\n"
                     "Se algum worker parou antes de terminar (sessão expirada, internet caiu, etc.), "
-                    "é só rodar este programa de novo - ele continua de onde parou, sem perder nada.\n\n"
-                    "Pra saber se a varredura da empresa toda já está 100% completa, peça pra rodar "
-                    "scripts/relatorio_completude.py."
+                    "é só rodar este programa de novo - ele continua de onde parou, sem perder nada."
                 )
             )
         elif tipo == "erro":

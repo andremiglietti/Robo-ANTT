@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from executar_robo_gui import AppRobo, _percentual_de  # noqa: E402
+from executar_robo_gui import AppRobo, _percentual_de, _resumo_completude_legivel  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -97,11 +97,45 @@ def test_mensagem_worker_status_atualiza_label_e_barra(app):
 def test_mensagem_concluido_mostra_resumo_final(app):
     _resetar(app, total_workers=1)
 
-    app._tratar_mensagem(("concluido", "C:/fake/Relatorio_Multas.xlsx"))
+    app._tratar_mensagem(("concluido", "C:/fake/Relatorio_Multas.xlsx", "Confirmado: 100% completo."))
     app.update()
 
     assert "CONCLU" in app._label_status_geral["text"]
     assert "Relatorio_Multas.xlsx" in app._label_resultado_final["text"]
+    assert "Confirmado: 100% completo." in app._label_resultado_final["text"]
+
+
+# ---------------------------------------------------------------------------
+# _resumo_completude_legivel() - achado ao vivo em 23/09/2026 (ver CLAUDE.md):
+# a tela antiga mandava a pessoa NÃO-técnica "pedir pra alguém rodar um
+# script" - contradiz o motivo da IHM existir. Agora a checagem roda
+# sozinha e o resultado sai em português direto na tela.
+# ---------------------------------------------------------------------------
+
+
+def test_resumo_completude_erro_nao_menciona_rodar_script():
+    resumo = _resumo_completude_legivel({"erro": "sessão expirada"})
+    assert "script" not in resumo.lower()
+    assert "rode este programa de novo" in resumo
+
+
+def test_resumo_completude_100_por_cento():
+    resultado = {"cem_por_cento": True}
+    resumo = _resumo_completude_legivel(resultado)
+    assert "100% completa" in resumo
+
+
+def test_resumo_completude_faltando_paginacao_e_falhas():
+    resultado = {
+        "cem_por_cento": False,
+        "paginacao_completa": False,
+        "faltando_por_cnpj": {"92.660.604/0001-82": ["Cargas", "Excesso de Peso"]},
+        "total_falhas": 5,
+    }
+    resumo = _resumo_completude_legivel(resultado)
+    assert "2 combinação" in resumo
+    assert "5 documento" in resumo
+    assert "script" not in resumo.lower()
 
 
 def test_clicar_ja_fiz_login_libera_evento_e_desabilita_botao(app):

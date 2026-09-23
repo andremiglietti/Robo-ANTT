@@ -61,13 +61,20 @@ def _todos_os_checkpoints() -> list[Path]:
     return caminhos
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--session", type=Path, default=None, help="Sessão específica a usar (opcional)")
-    args = parser.parse_args()
+def calcular_completude(session_file: Path | None = None) -> dict:
+    """Calcula a completude da empresa inteira e devolve um dict
+    estruturado - sem imprimir nada, pra qualquer chamador (o `main()`
+    deste script, ou a IHM gráfica, ver executar_robo_gui.py 23/09/2026)
+    decidir sozinho como apresentar o resultado.
 
-    sessao = _achar_sessao_valida(args.session)
-    print(f"Usando sessão: {sessao}")
+    Levanta `FileNotFoundError` se não achar nenhuma sessão salva (nada a
+    fazer sem isso). Se achar uma sessão mas ela estiver expirada, ou o
+    portal estiver indisponível, devolve `{"erro": <mensagem>}` em vez de
+    levantar exceção - erro esperado/comum, não excepcional, e chamadores
+    (principalmente a GUI) precisam de um jeito prático de tratar isso sem
+    precisar de try/except pra todo tipo de erro do Playwright.
+    """
+    sessao = _achar_sessao_valida(session_file)
 
     with sync_playwright() as p:
         browser, context, page = abrir_contexto(p, headless=True, session_file=sessao)
@@ -75,15 +82,11 @@ def main() -> None:
             abrir_tela_processos(page)
             cnpjs = listar_cnpjs(page)
         except (SessaoExpiradaError, PortalIndisponivelError) as e:
-            print(f"\nNão foi possível listar os CNPJs: {e}")
-            print("Capture uma sessão válida (scripts/capturar_sessao_worker.py ou "
-                  "teste_sessao_1_capturar.py) e rode de novo.")
-            return
+            return {"erro": str(e), "sessao_usada": str(sessao)}
         finally:
             browser.close()
 
     total_cnpjs = len(cnpjs)
-    total_tipos = len(TIPOS_FISCALIZACAO)
     esperadas = {f"{cnpj['value']}|{tipo_value}" for cnpj in cnpjs for tipo_value in TIPOS_FISCALIZACAO}
     total_esperado = len(esperadas)
 
@@ -111,38 +114,66 @@ def main() -> None:
     total_falhas = sum(len(f) for f in falhas_por_checkpoint.values())
     paginacao_completa = not faltando
 
-    print(f"\nCheckpoints lidos: {len(caminhos_checkpoint)} ({', '.join(c.name for c in caminhos_checkpoint)})")
-    print(f"CNPJs reais no portal: {total_cnpjs} | Tipos de fiscalização: {total_tipos}")
-    print(f"Combinações CNPJ×tipo esperadas: {total_esperado}")
-    print(f"Paginação confirmada 100% completa: {len(confirmadas)} ({100 * len(confirmadas) / total_esperado:.1f}%)")
-    print(f"Autos com falha de download/extração pendente: {total_falhas}")
+    texto_por_cnpj = {c["value"]: c["texto"] for c in cnpjs}
+    nome_por_tipo = dict(TIPOS_FISCALIZACAO.items())
+    faltando_por_cnpj: dict[str, list[str]] = {}
+    for chave in faltando:
+        cnpj_value, tipo_value = chave.split("|", 1)
+        texto_cnpj = texto_por_cnpj.get(cnpj_value, cnpj_value)
+        faltando_por_cnpj.setdefault(texto_cnpj, []).append(nome_por_tipo.get(tipo_value, tipo_value))
 
-    if not paginacao_completa:
-        print(f"\n[ATENÇÃO] Faltam {len(faltando)} combinação(ões) CNPJ×tipo (paginação) - agrupadas por CNPJ:")
-        texto_por_cnpj = {c["value"]: c["texto"] for c in cnpjs}
-        nome_por_tipo = {v: n for v, n in TIPOS_FISCALIZACAO.items()}
-        faltando_por_cnpj: dict[str, list[str]] = {}
-        for chave in faltando:
-            cnpj_value, tipo_value = chave.split("|", 1)
-            faltando_por_cnpj.setdefault(cnpj_value, []).append(nome_por_tipo.get(tipo_value, tipo_value))
+    return {
+        "sessao_usada": str(sessao),
+        "total_cnpjs": total_cnpjs,
+        "total_tipos": len(TIPOS_FISCALIZACAO),
+        "checkpoints_lidos": [c.name for c in caminhos_checkpoint],
+        "total_esperado": total_esperado,
+        "total_confirmadas": len(confirmadas),
+        "paginacao_completa": paginacao_completa,
+        "faltando_por_cnpj": faltando_por_cnpj,
+        "total_falhas": total_falhas,
+        "falhas_por_checkpoint": {nome: len(f) for nome, f in falhas_por_checkpoint.items()},
+        "cem_por_cento": paginacao_completa and not total_falhas,
+    }
 
-        for cnpj_value, tipos_faltando in sorted(faltando_por_cnpj.items()):
-            texto = texto_por_cnpj.get(cnpj_value, cnpj_value)
-            print(f"  - {texto}: {', '.join(sorted(tipos_faltando))}")
 
+def _imprimir_relatorio(resultado: dict) -> None:
+    """Formata `resultado` (de calcular_completude()) como o relatório
+    técnico em texto - usado só pelo `main()` (linha de comando). A GUI
+    usa o dict diretamente, sem passar por aqui (ver executar_robo_gui.py)."""
+    if "erro" in resultado:
+        print(f"\nNão foi possível listar os CNPJs: {resultado['erro']}")
+        print("Capture uma sessão válida (scripts/capturar_sessao_worker.py ou "
+              "teste_sessao_1_capturar.py) e rode de novo.")
+        return
+
+    print(f"Usando sessão: {resultado['sessao_usada']}")
+    print(f"\nCheckpoints lidos: {len(resultado['checkpoints_lidos'])} ({', '.join(resultado['checkpoints_lidos'])})")
+    print(f"CNPJs reais no portal: {resultado['total_cnpjs']} | Tipos de fiscalização: {resultado['total_tipos']}")
+    print(f"Combinações CNPJ×tipo esperadas: {resultado['total_esperado']}")
+    pct = 100 * resultado["total_confirmadas"] / resultado["total_esperado"] if resultado["total_esperado"] else 0
+    print(f"Paginação confirmada 100% completa: {resultado['total_confirmadas']} ({pct:.1f}%)")
+    print(f"Autos com falha de download/extração pendente: {resultado['total_falhas']}")
+
+    if not resultado["paginacao_completa"]:
+        faltando_por_cnpj = resultado["faltando_por_cnpj"]
+        total_faltando = sum(len(v) for v in faltando_por_cnpj.values())
+        print(f"\n[ATENÇÃO] Faltam {total_faltando} combinação(ões) CNPJ×tipo (paginação) - agrupadas por CNPJ:")
+        for texto_cnpj, tipos_faltando in sorted(faltando_por_cnpj.items()):
+            print(f"  - {texto_cnpj}: {', '.join(sorted(tipos_faltando))}")
         print(
             "\nEsses CNPJs/tipos ainda não foram confirmados 100% completos em NENHUMA execução até agora - "
             "rode os workers de novo (ou uma execução sequencial) cobrindo eles pra fechar o restante."
         )
 
-    if total_falhas:
+    if resultado["total_falhas"]:
         print(
-            f"\n[ATENÇÃO] {total_falhas} auto(s) foram VISTOS na tabela em alguma execução, mas NÃO foram "
-            "baixados/extraídos com sucesso (falha de documento específico - independente da paginação estar "
-            "completa ou não). Por checkpoint:"
+            f"\n[ATENÇÃO] {resultado['total_falhas']} auto(s) foram VISTOS na tabela em alguma execução, mas NÃO "
+            "foram baixados/extraídos com sucesso (falha de documento específico - independente da paginação "
+            "estar completa ou não). Por checkpoint:"
         )
-        for nome_checkpoint, falhas in sorted(falhas_por_checkpoint.items()):
-            print(f"  - {nome_checkpoint}: {len(falhas)} falha(s)")
+        for nome_checkpoint, n_falhas in sorted(resultado["falhas_por_checkpoint"].items()):
+            print(f"  - {nome_checkpoint}: {n_falhas} falha(s)")
         print(
             "\nIsso significa que, mesmo com a paginação 100% completa, a planilha final pode não ter 100% dos "
             "autos reais até essas falhas serem resolvidas. Rode os workers/execução de novo pra retentar "
@@ -150,17 +181,24 @@ def main() -> None:
             "de rodar)."
         )
 
-    if paginacao_completa and not total_falhas:
+    if resultado["cem_por_cento"]:
         print(
             "\n[OK] TODAS as combinações CNPJ×tipo da empresa estão 100% completas - paginação percorrida por "
             "inteiro E nenhuma falha de documento pendente em nenhum checkpoint."
         )
-    elif paginacao_completa and total_falhas:
+    elif resultado["paginacao_completa"] and resultado["total_falhas"]:
         print(
             "\n[QUASE OK] Paginação 100% completa (vimos todos os autos que existem no portal), mas ainda há "
             "falhas de download/extração pendentes (ver acima) - a planilha final pode não refletir 100% dos "
             "autos reais até elas serem resolvidas."
         )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--session", type=Path, default=None, help="Sessão específica a usar (opcional)")
+    args = parser.parse_args()
+    _imprimir_relatorio(calcular_completude(args.session))
 
 
 if __name__ == "__main__":
