@@ -157,17 +157,26 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     # abaixo, então não precisamos que o click espere por mais nada.
     #
     # ⚠️ Timeout aumentado de 60s pra 180s em 22/09/2026 (ver CLAUDE.md,
-    # scripts/investigar_falhas_cargas.py): 16 falhas persistentes, todas
-    # com "Timeout 60000ms exceeded while waiting for event 'download'",
-    # concentradas no tipo de fiscalização "Cargas" (Piso Mínimo de Frete/
-    # Produtos Perigosos/Vale-Pedágio no disco). Investigação confirmou que
-    # esses documentos são sistematicamente muito mais pesados que a média
-    # (Cargas: média 67,9 páginas/mediana 77 vs. 22,0/14 dos outros tipos;
-    # alguns passam de 200 páginas e 27MB) - plausível que o servidor
-    # demore mais que 60s pra gerar/entregar um PDF desse tamanho. 180s é
-    # uma folga generosa e segura: só estica o tempo de espera em downloads
-    # genuinamente lentos, não muda nada pro caso comum (rápido).
-    with page.expect_download(timeout=180000) as download_info:
+    # scripts/investigar_falhas_cargas.py) por causa de documentos "Cargas"
+    # sistematicamente maiores (média 67,9 páginas vs. 22,0 dos outros
+    # tipos) - a hipótese era que o servidor demorasse mais pra gerar PDFs
+    # grandes.
+    #
+    # 🔴 Revertido pra 75s em 23/09/2026 - a evidência acumulada derrubou a
+    # hipótese: numa execução real com 180s ativo, **336 tentativas** (80
+    # documentos únicos, retentados até 3x cada) estouraram o timeout
+    # INTEIRO de 180s, sempre os MESMOS documentos já conhecidos como
+    # "problema permanente do servidor" (ver CLAUDE.md) - ~16,8h de espera
+    # cumulativa sem UM ÚNICO caso registrado de sucesso entre 60s e 180s.
+    # Documentos de "Excesso de Peso" (menores, em média) passaram a
+    # apresentar o MESMO padrão de falha idêntica - contradiz a hipótese
+    # original de "é question de tamanho do PDF". Tudo aponta pra um
+    # travamento permanente do lado do servidor nesses ~80 documentos
+    # específicos, não lentidão de geração - nenhum timeout resolve isso,
+    # só aumenta o desperdício. 75s mantém uma folga modesta sobre o valor
+    # original (60s) sem repetir o custo dos 180s, que não tinha
+    # evidência nenhuma de benefício real.
+    with page.expect_download(timeout=75000) as download_info:
         botao_visualizar.click(no_wait_after=True)
     download = download_info.value
 
