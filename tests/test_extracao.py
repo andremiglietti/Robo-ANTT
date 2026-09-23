@@ -153,3 +153,39 @@ def test_divida_ativa_sem_pagina_de_auto_cai_em_outros():
     caminho = pdf_fixture("CRGPF00004092019.pdf")
     texto = extrair_texto_pagina1(caminho)
     assert identificar_tipo_multa(texto) == "Outros"
+
+
+# ---------------------------------------------------------------------------
+# Auditoria da pasta "Outros" (23/09/2026, ver CLAUDE.md) - achou 2 tipos
+# genuinamente novos e um bug de regex que jogava vários "Excesso de Peso"
+# em "Outros" por engano.
+# ---------------------------------------------------------------------------
+
+
+def test_regex_com_dotall_acha_peso_em_cabecalho_multilinha():
+    """EPSB200007882022.pdf (e outros com o mesmo prefixo EPS*): o
+    cabeçalho quebra em várias linhas ("NOTIFICAÇÃO DA AUTUAÇÃO
+    EXCESSO\nDE PESO") - sem re.DOTALL, a busca de 80 caracteres parava
+    no fim da 1ª linha e nunca achava "PESO", caindo em "Outros" por
+    engano mesmo sendo um Excesso de Peso de verdade."""
+    caminho = pdf_fixture("EPSB200007882022.pdf")
+    texto = extrair_texto_pagina1(caminho)
+    assert identificar_tipo_multa(texto) == "Excesso de Peso"
+
+
+def test_novo_tipo_evasao_de_pesagem():
+    """FRMEV00102002021.pdf: "AUTO DE INFRAÇÃO - EVASÃO DA ÁREA DESTINADA
+    A PESAGEM" - tipo genuinamente novo, diferente de "Evasão de Pedágio"
+    (que ainda não tem exemplo real)."""
+    caminho = pdf_fixture("FRMEV00102002021.pdf")
+    texto = extrair_texto_pagina1(caminho)
+    assert identificar_tipo_multa(texto) == "Evasão de Pesagem"
+
+
+def test_novo_tipo_cargas_rntrc():
+    """CRGRN00057462022.pdf: "CARGAS - RNTRC" - tipo genuinamente novo
+    (irregularidade de Registro Nacional de Transportadores Rodoviários
+    de Cargas)."""
+    caminho = pdf_fixture("CRGRN00057462022.pdf")
+    texto = extrair_texto_pagina1(caminho)
+    assert identificar_tipo_multa(texto) == "Cargas - RNTRC"

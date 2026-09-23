@@ -39,16 +39,21 @@ def extrair_texto_pagina1(pdf_path: Path) -> str:
 
 
 # Palavras-chave sem acento por tipo de multa, na ordem em que devem ser
-# testadas (a primeira que bater vence). Baseado nos 5 exemplos reais
-# analisados em 15-16/09/2026. Tipos que ainda não vimos exemplo real
-# (Cargas Internacional, Passageiros, Infraestrutura Rodoviária, Evasão de
-# Pedágio) caem em "Outros" até termos um PDF de exemplo pra mapear a
-# palavra-chave certa.
+# testadas (a primeira que bater vence). Baseado nos 5 exemplos originais
+# (15-16/09/2026) + achados de uma auditoria da pasta "Outros" em
+# 23/09/2026 (ver CLAUDE.md) - "PESAGEM" (evasão de área de pesagem,
+# achado em `FRMEV*.pdf`) e "RNTRC" (irregularidade de registro de
+# transportador, achado em `CRGRN*.pdf`) são tipos genuinamente novos,
+# nunca antes vistos. Cargas Internacional, Passageiros, Infraestrutura
+# Rodoviária e Evasão de Pedágio (o pedágio em si, diferente de "evasão de
+# pesagem") ainda caem em "Outros" até termos um PDF de exemplo real.
 _PALAVRAS_CHAVE_TIPO_MULTA = [
+    ("PESAGEM", "Evasão de Pesagem"),  # checar ANTES de "PESO" - achado 23/09/2026
     ("PESO", "Excesso de Peso"),
     ("FRETE", "Piso Mínimo de Frete"),
     ("PERIGOSOS", "Produtos Perigosos"),
     ("VALE", "Vale-Pedágio"),
+    ("RNTRC", "Cargas - RNTRC"),  # achado 23/09/2026 - ver CLAUDE.md
 ]
 
 
@@ -56,8 +61,17 @@ def identificar_tipo_multa(texto_pagina1: str) -> str:
     """Lê o cabeçalho "AUTO DE INFRAÇÃO ..." da página 1 e classifica o tipo
     de multa usando palavras-chave sem acento (ver docstring do módulo).
     Usado pra decidir em qual pasta salvar o PDF (data/downloads/{cnpj}/{tipo}/).
+
+    ⚠️ Achado ao vivo em 23/09/2026 (auditoria da pasta "Outros", ver
+    CLAUDE.md): a regex não tinha `re.DOTALL` - como o cabeçalho às vezes
+    quebra em várias linhas (ex.: "NOTIFICAÇÃO DA AUTUAÇÃO EXCESSO\nDE
+    PESO", com "PESO" numa linha SEGUINTE à correspondência), `.` não
+    batia `\n` por padrão e a busca de 80 caracteres parava no fim da
+    1ª linha, nunca chegando na palavra-chave real - vários autos de
+    "Excesso de Peso" caíam em "Outros" por causa disso. Corrigido
+    acrescentando `re.DOTALL`.
     """
-    m = re.search(r"AUTO DE INFRA.{2}O\s+(.{0,80})", texto_pagina1, re.IGNORECASE)
+    m = re.search(r"AUTO DE INFRA.{2}O\s+(.{0,80})", texto_pagina1, re.IGNORECASE | re.DOTALL)
     trecho = m.group(1).upper() if m else texto_pagina1[:80].upper()
 
     for palavra_chave, tipo in _PALAVRAS_CHAVE_TIPO_MULTA:
