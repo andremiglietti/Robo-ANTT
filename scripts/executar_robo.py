@@ -147,7 +147,16 @@ def _status_legivel(log_path: Path) -> str:
     if achados:
         atual, total, processados = achados[-1]
         pct = int(atual) * 100 // int(total) if int(total) else 0
-        return f"{pct}% concluído - {processados} multas encontradas até agora"
+        # ⚠️ Achado ao vivo em 23/09/2026 (durante o teste de login real da
+        # GUI): "processados" aqui é o total HISTÓRICO acumulado no
+        # checkpoint (soma de TODAS as execuções anteriores desse worker,
+        # não só desta) - a frase antiga ("multas encontradas até agora")
+        # dava a entender que era tudo novo desta execução, o que confundiu
+        # o usuário ao ver "4189" logo nos primeiros % de uma varredura que
+        # tinha acabado de começar. Frase corrigida pra bater com a mesma
+        # honestidade já usada no ramo "[OK] concluído" alguns parágrafos
+        # acima ("no total (histórico completo)").
+        return f"{pct}% concluído - {processados} multas no total (histórico, inclui execuções anteriores)"
     return "trabalhando... (ainda sem número de progresso disponível)"
 
 
