@@ -8,6 +8,8 @@ Uso típico (ver CLAUDE.md, item 7 da arquitetura):
             adicionar_registro(wb, registro)
     salvar(wb, caminho)  # só grava no final, com o cuidado de arquivo temporário
 """
+import datetime
+import re
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -73,6 +75,68 @@ _CAMPO_POR_COLUNA = {
 }
 
 _COLUNA_AUTO_INFRACAO = COLUNAS.index("Auto de Infração") + 1  # openpyxl é 1-based
+
+# ⚠️ Achado em 22/09/2026 (ver CLAUDE.md): até aqui, TODAS as colunas eram
+# gravadas como texto puro - inclusive datas ("23/07/2016") e valores
+# monetários ("1.234,56") - o que impede a pessoa de ordenar por data,
+# filtrar por período ou somar a coluna "Valor" no Excel sem converter a
+# coluna inteira manualmente primeiro. Corrigido em 23/09/2026: essas
+# colunas agora viram tipo nativo do Excel (datetime.date / float) na
+# gravação, com formato de exibição explícito (DD/MM/AAAA / "R$ #,##0.00")
+# - Excel mostra do jeito esperado independente da configuração regional,
+# e permite ordenar/filtrar/somar nativamente. "Código de Barras" fica de
+# fora de propósito - é um identificador (dígitos exatos importam, não é
+# uma quantidade), não uma coluna monetária.
+_COLUNAS_DATA = {
+    "Data Autuação",
+    "Data Emissão Doc. Fiscal",
+    "Data Emissão Notificação",
+    "Data Emissão Boleto",
+    "Data Vencimento",
+}
+_COLUNAS_VALOR = {"Valor", "Valor Desconto"}
+_FORMATO_DATA = "DD/MM/YYYY"
+_FORMATO_VALOR = "R$ #,##0.00"
+
+
+def _converter_para_tipo_nativo(coluna: str, valor):
+    """Converte um valor de texto (formato brasileiro, como vem da
+    extração do PDF) pro tipo nativo do Excel esperado pra essa coluna -
+    `datetime.date` pras colunas de data, `float` pras de valor. Se
+    `valor` já for do tipo nativo (ex.: reconsolidando uma planilha que já
+    passou por essa conversão), devolve sem mudar - idempotente. Se a
+    conversão falhar (formato inesperado/atípico), devolve o valor
+    original sem quebrar - é mais importante manter o dado (mesmo como
+    texto) do que perdê-lo por causa de 1 documento com formato estranho.
+    """
+    if valor is None or valor == "":
+        return valor
+    if coluna in _COLUNAS_DATA:
+        if isinstance(valor, (datetime.date, datetime.datetime)):
+            return valor
+        try:
+            return datetime.datetime.strptime(str(valor).strip(), "%d/%m/%Y").date()
+        except ValueError:
+            return valor
+    if coluna in _COLUNAS_VALOR:
+        if isinstance(valor, (int, float)):
+            return valor
+        texto = str(valor).strip()
+        if not re.fullmatch(r"\d{1,3}(\.\d{3})*,\d{2}|\d+,\d{2}|\d+", texto):
+            return valor  # formato inesperado - mantém como texto em vez de arriscar um número errado
+        return float(texto.replace(".", "").replace(",", "."))
+    return valor
+
+
+def _aplicar_formato_numerico(celula, coluna: str) -> None:
+    """Define o number_format da célula pro tipo que acabou de ser
+    gravado nela - só se a conversão acima realmente resultou num tipo
+    nativo (senão, ficou como texto mesmo, e não faz sentido aplicar
+    formato de data/número numa string)."""
+    if coluna in _COLUNAS_DATA and isinstance(celula.value, (datetime.date, datetime.datetime)):
+        celula.number_format = _FORMATO_DATA
+    elif coluna in _COLUNAS_VALOR and isinstance(celula.value, (int, float)):
+        celula.number_format = _FORMATO_VALOR
 
 
 def abrir_ou_criar(caminho: Path) -> Workbook:
@@ -187,7 +251,8 @@ def atualizar_campos_vazios(wb: Workbook, auto_infracao: str, campos_novos: dict
             indice_coluna = COLUNAS.index(coluna) + 1  # openpyxl é 1-based
             celula = ws.cell(row=numero_linha, column=indice_coluna)
             if celula.value is None or (isinstance(celula.value, str) and not celula.value.strip()):
-                celula.value = valor_novo
+                celula.value = _converter_para_tipo_nativo(coluna, valor_novo)
+                _aplicar_formato_numerico(celula, coluna)
                 preenchidos += 1
         return preenchidos
     return 0
@@ -196,10 +261,15 @@ def atualizar_campos_vazios(wb: Workbook, auto_infracao: str, campos_novos: dict
 def adicionar_registro(wb: Workbook, registro: dict) -> None:
     """Adiciona uma linha nova com os dados de uma multa. `registro` é um
     dict com as chaves em _CAMPO_POR_COLUNA.values() (auto_infracao, cnpj,
-    valor, etc.) - chaves ausentes viram célula em branco, não erro."""
+    valor, etc.) - chaves ausentes viram célula em branco, não erro.
+    Colunas de data/valor são convertidas pro tipo nativo do Excel (ver
+    _converter_para_tipo_nativo())."""
     ws = _aba(wb)
-    linha = [registro.get(_CAMPO_POR_COLUNA[coluna]) for coluna in COLUNAS]
+    linha = [_converter_para_tipo_nativo(coluna, registro.get(_CAMPO_POR_COLUNA[coluna])) for coluna in COLUNAS]
     ws.append(linha)
+    numero_linha = ws.max_row
+    for indice, coluna in enumerate(COLUNAS, start=1):
+        _aplicar_formato_numerico(ws.cell(row=numero_linha, column=indice), coluna)
     # mantém o cache de ja_registrado() em dia (só se ele já existir - se
     # ninguém chamou ja_registrado() nesta wb ainda, não há cache pra
     # atualizar, e tudo bem: ele nasce correto na 1ª chamada futura, já
