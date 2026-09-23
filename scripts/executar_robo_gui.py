@@ -90,8 +90,9 @@ class AppRobo(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Robô ANTT - Varredura de Autos de Infração")
-        self.geometry("560x480")
-        self.resizable(False, False)
+        self.geometry("700x480")
+        self.minsize(560, 400)
+        self.resizable(True, True)
 
         self._fila: queue.Queue = queue.Queue()
         self._evento_login: threading.Event | None = None
@@ -184,14 +185,24 @@ class AppRobo(tk.Tk):
         self._botao_login.pack(anchor="w", pady=(0, 15))
 
         area_workers = tk.Frame(self._frame_exec)
-        area_workers.pack(fill="x")
+        area_workers.pack(fill="both", expand=True)
         for worker_id in range(total_workers):
             linha = tk.Frame(area_workers)
             linha.pack(fill="x", pady=3)
-            label = tk.Label(linha, text=f"Worker {worker_id + 1}: aguardando...", anchor="w", width=45)
-            label.pack(side="left")
+            # ⚠️ Achado ao vivo em 23/09/2026 (ver CLAUDE.md): com a janela em
+            # tamanho fixo e o rótulo com largura fixa em caracteres, texto
+            # mais longo (ex.: "94% concluído - 680 multas no total
+            # (histórico, inclui execuções anteriores)") ficava cortado sem
+            # aviso nenhum - a pessoa não conseguia nem redimensionar a
+            # janela pra ver o resto. Corrigido: janela agora é redimension
+            # ável (ver __init__), a barra de progresso fica fixa à direita
+            # (empacotada primeiro, com side="right"), e o rótulo ocupa todo
+            # o espaço restante (`fill="x", expand=True`) - se ainda não
+            # couber, quebra em 2+ linhas (`wraplength`) em vez de cortar.
             barra = ttk.Progressbar(linha, length=150, maximum=100)
-            barra.pack(side="left", padx=(10, 0))
+            barra.pack(side="right", padx=(10, 0))
+            label = tk.Label(linha, text=f"Worker {worker_id + 1}: aguardando...", anchor="w", justify="left", wraplength=450)
+            label.pack(side="left", fill="x", expand=True)
             self._linhas_worker[worker_id] = {"label": label, "barra": barra}
 
         self._label_resultado_final = tk.Label(
