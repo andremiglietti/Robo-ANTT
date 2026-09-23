@@ -61,3 +61,26 @@ def test_concluido_mostra_total_historico(tmp_path):
 def test_sem_numero_de_progresso_ainda_diz_trabalhando(tmp_path):
     log = _escrever_log(tmp_path, "Abrindo o portal...\n")
     assert _status_legivel(log) == "trabalhando... (ainda sem número de progresso disponível)"
+
+
+def test_antes_do_1o_checkpoint_de_10_usa_a_linha_de_item_como_sinal_de_vida(tmp_path):
+    """Achado ao vivo em 23/09/2026 (login real com 5 workers): "[Progresso]"
+    só aparece a cada 10 itens - com ~85 itens por worker, a pessoa ficava
+    minutos vendo "sem número de progresso disponível" mesmo com o robô já
+    tendo processado itens reais (um deles achou 327 registros no item 5).
+    "[Item X/Y | ...]" imprime a cada item - usada como sinal de vida
+    imediato antes do 1º checkpoint de 10."""
+    log = _escrever_log(
+        tmp_path,
+        "[Item 1/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Excesso de Peso] concluído: 3 processo(s)\n"
+        "[Item 2/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Cargas] sem processos\n",
+    )
+    status = _status_legivel(log)
+    assert status == "2% concluído - trabalhando (combinação 2 de 86)"
+
+
+def test_item_sem_cnpj_no_meio_nao_quebra_o_parsing(tmp_path):
+    """Visto ao vivo: às vezes o CNPJ vem vazio entre os "|" - o parsing do
+    número de item/total não pode depender do que tem depois."""
+    log = _escrever_log(tmp_path, "[Item 13/86 | - YARA BRASIL FERTILIZANTES S.A | Passageiros Internacional] sem processos\n")
+    assert _status_legivel(log) == "15% concluído - trabalhando (combinação 13 de 86)"

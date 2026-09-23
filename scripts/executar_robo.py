@@ -123,6 +123,12 @@ def _iniciar_worker(worker_id: int, total_workers: int) -> subprocess.Popen:
 # CLAUDE.md) pra achar o número de itens e de multas processadas.
 _RE_PROGRESSO = re.compile(r"\[Progresso\]\s*(\d+)/(\d+).*?total geral:\s*(\d+)\s*processado", re.DOTALL)
 
+# "[Item X/Y | ...]" é impressa a cada COMBINAÇÃO tentada (a cada item, não
+# só a cada 10 como o "[Progresso]" acima) - usada como fallback pra ter
+# algum sinal de vida antes do primeiro checkpoint de 10. Não depende do
+# que vem depois do "|" (CNPJ pode até vir vazio em alguns casos raros).
+_RE_ITEM = re.compile(r"\[Item\s+(\d+)/(\d+)\s*\|")
+
 
 def _status_legivel(log_path: Path) -> str:
     """Lê o log de 1 worker e devolve 1 linha de status em português comum,
@@ -157,6 +163,21 @@ def _status_legivel(log_path: Path) -> str:
         # honestidade já usada no ramo "[OK] concluído" alguns parágrafos
         # acima ("no total (histórico completo)").
         return f"{pct}% concluído - {processados} multas no total (histórico, inclui execuções anteriores)"
+
+    # ⚠️ Achado ao vivo em 23/09/2026 (mesmo teste): com "[Progresso]" só
+    # aparecendo a cada 10 itens, e cada worker cobrindo ~85 itens no
+    # total, a pessoa ficava olhando pra "trabalhando... (ainda sem número
+    # de progresso disponível)" por vários minutos sem nenhum sinal de que
+    # o robô estava fazendo alguma coisa de verdade (mesmo já tendo
+    # processado itens reais, alguns com centenas de registros). Usa a
+    # última linha "[Item X/Y | ...]" (impressa a cada item, não só a cada
+    # 10) como sinal de vida imediato antes do 1º checkpoint de 10.
+    achados_item = _RE_ITEM.findall(texto)
+    if achados_item:
+        atual, total = achados_item[-1]
+        pct = int(atual) * 100 // int(total) if int(total) else 0
+        return f"{pct}% concluído - trabalhando (combinação {atual} de {total})"
+
     return "trabalhando... (ainda sem número de progresso disponível)"
 
 
