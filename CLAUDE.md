@@ -276,7 +276,7 @@ O projeto é inspirado (benchmarking) num robô já existente em outra empresa d
 | 9 | 24/09 (Qui) | Implementar extração de campos do PDF | ⬜ |
 | 10 | 25/09 (Sex) | Checkpoint/retentativa + teste ponta a ponta em escala pequena | ⬜ |
 | 11 | 28/09 (Seg) | ~~Cruzamento com base interna~~ (descartado — sem base interna) + geração da planilha Excel final + gravação na pasta do SharePoint | ⬜ |
-| 12 | 29/09 (Ter) | Teste final ponta a ponta + criar atalho de execução + guia de uso | ⬜ |
+| 12 | 29/09 (Ter) | Teste final ponta a ponta + criar atalho de execução + guia de uso | ✅ Atalho + IHM gráfica + guia de uso feitos e validados em 22-23/09/2026, adiantado |
 | 13 | 30/09 (Qua) | Revisão geral e entrega | ⬜ |
 
 **Balanço em 15/09/2026 (Dia 2 do calendário):** todo o levantamento/investigação até o Dia 4 está pronto, e metade do Dia 5. Ou seja, **~3 dias de investigação adiantados**. Isso cria uma folga útil para a fase de código (Dias 6–10), que é onde o risco de atraso é maior — mas nenhuma linha de código do robô foi escrita ainda (`src/robo_antt/` continua vazio); o adiantamento é só na parte de levantamento/checklist, não em implementação.
@@ -418,6 +418,7 @@ C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT\
       - 🔴 **Quarto achado no mesmo dia (23/09/2026), puramente visual:** com a janela em tamanho fixo (560×480) e sem poder redimensionar, textos de status mais longos (ex.: "94% concluído - 680 multas no total (histórico, inclui execuções anteriores)") ficavam cortados na borda da janela, sem a pessoa conseguir nem alargar a janela pra ver o resto.
         - ✅ **Corrigido:** janela virou redimensionável (`resizable(True, True)`), com tamanho padrão maior (700×480, `minsize` 560×400) e um layout que se adapta - a barra de progresso fica fixa à direita, o texto do worker ocupa o espaço restante (`fill="x", expand=True`) e quebra em 2+ linhas (`wraplength`) em vez de cortar, mesmo se a pessoa não mexer no tamanho da janela.
         - ✅ Validado: sintaxe, suite completa sem regressão (50 testes), e checagem visual numa janela descartável confirmando `resizable=(1,1)`, geometria 700×480 e o texto completo aplicado ao rótulo.
+    - ✅ **Guia de uso escrito em 23/09/2026** (`docs/guia_de_uso.md`) - agora que a IHM gráfica está validada e estável (não faz mais sentido documentar uma interface que pode mudar, como estava travado em 22/09). Escrito pra pessoa não-técnica que opera o robô: passo a passo de tela em tela (abrir, escolher workers, fazer login, acompanhar, conclusão), o que fazer se algo parar no meio (sessão expirada/portal em manutenção - sempre "é só rodar de novo, nada se perde"), e perguntas frequentes. Ponto de contato de TI/suporte deixado como placeholder - ainda não definido (Bloco 6.5, item de negócio pendente).
 
 ## Notas de segurança adicionadas nesta sessão
 
