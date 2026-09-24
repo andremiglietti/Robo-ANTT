@@ -97,12 +97,16 @@ def test_mensagem_worker_status_atualiza_label_e_barra(app):
 def test_mensagem_concluido_mostra_resumo_final(app):
     _resetar(app, total_workers=1)
 
-    app._tratar_mensagem(("concluido", "C:/fake/Relatorio_Multas.xlsx", "Confirmado: 100% completo."))
+    app._tratar_mensagem(("concluido", "C:/fake/Relatorio_Multas.xlsx", "Confirmado: 100% completo.", 4191, 7))
     app.update()
 
     assert "CONCLU" in app._label_status_geral["text"]
     assert "Relatorio_Multas.xlsx" in app._label_resultado_final["text"]
     assert "Confirmado: 100% completo." in app._label_resultado_final["text"]
+    # achado/pedido em 24/09/2026: resumo final precisa dizer quantas multas
+    # foram verificadas no total e quantas são novas desta execução.
+    assert "4191" in app._label_resultado_final["text"]
+    assert "7 nova" in app._label_resultado_final["text"]
 
 
 # ---------------------------------------------------------------------------

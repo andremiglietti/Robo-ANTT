@@ -41,6 +41,7 @@ from executar_robo import (  # noqa: E402
     LOG_DIR,
     PORTAL_LOGIN_URL,
     _consolidar_planilha_final,
+    _contar_linhas_planilha,
     _iniciar_worker,
     _status_legivel,
     config,
@@ -253,8 +254,18 @@ class AppRobo(tk.Tk):
                     break
                 time.sleep(5)
 
+            # ⚠️ Pedido do usuário em 24/09/2026: informar, no resumo final,
+            # quantas multas foram verificadas no total e quantas são novas
+            # desta execução - contagem antes/depois de consolidar, não uma
+            # suposição (a diferença é exatamente o que essa execução
+            # acrescentou de verdade na planilha final).
+            total_antes = _contar_linhas_planilha(config.PLANILHA_PATH)
+
             self._fila.put(("status_geral", "Juntando os resultados de todos os workers na planilha final..."))
             _consolidar_planilha_final()
+
+            total_depois = _contar_linhas_planilha(config.PLANILHA_PATH)
+            novas_nesta_execucao = total_depois - total_antes
 
             self._fila.put(("status_geral", "Verificando se a varredura da empresa inteira já está 100% completa..."))
             try:
@@ -265,7 +276,9 @@ class AppRobo(tk.Tk):
                 resultado_completude = {"erro": "nenhuma sessão disponível"}
             resumo_completude = _resumo_completude_legivel(resultado_completude)
 
-            self._fila.put(("concluido", str(config.PLANILHA_PATH), resumo_completude))
+            self._fila.put(
+                ("concluido", str(config.PLANILHA_PATH), resumo_completude, total_depois, novas_nesta_execucao)
+            )
         except Exception as e:  # nunca deixa a thread de fundo morrer em silêncio
             self._fila.put(("erro", str(e)))
 
@@ -319,11 +332,17 @@ class AppRobo(tk.Tk):
             linha["label"].config(text=f"Worker {worker_id + 1}: {status}")
             linha["barra"]["value"] = _percentual_de(status)
         elif tipo == "concluido":
-            caminho_planilha, resumo_completude = mensagem[1], mensagem[2]
+            caminho_planilha, resumo_completude, total_verificadas, novas = (
+                mensagem[1],
+                mensagem[2],
+                mensagem[3],
+                mensagem[4],
+            )
             self._label_status_geral.config(text="CONCLUÍDO")
             self._label_resultado_final.config(
                 text=(
                     f"Planilha final: {caminho_planilha}\n\n"
+                    f"{total_verificadas} multa(s) verificada(s) no total, {novas} nova(s) nesta execução.\n\n"
                     f"{resumo_completude}\n\n"
                     "Se algum worker parou antes de terminar (sessão expirada, internet caiu, etc.), "
                     "é só rodar este programa de novo - ele continua de onde parou, sem perder nada."

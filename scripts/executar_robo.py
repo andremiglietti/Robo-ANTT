@@ -151,18 +151,15 @@ def _status_legivel(log_path: Path) -> str:
         return f"[OK] concluído - {total} multas no total (histórico completo)"
     achados = _RE_PROGRESSO.findall(texto)
     if achados:
-        atual, total, processados = achados[-1]
+        atual, total, _processados_historico = achados[-1]  # não usado mais aqui - ver comentário abaixo
         atual_i, total_i = int(atual), int(total)
         pct = atual_i * 100 // total_i if total_i else 0
         # ⚠️ Achado ao vivo em 23/09/2026 (durante o teste de login real da
         # GUI): "processados" aqui é o total HISTÓRICO acumulado no
         # checkpoint (soma de TODAS as execuções anteriores desse worker,
-        # não só desta) - a frase antiga ("multas encontradas até agora")
-        # dava a entender que era tudo novo desta execução, o que confundiu
-        # o usuário ao ver "4189" logo nos primeiros % de uma varredura que
-        # tinha acabado de começar. Frase corrigida pra bater com a mesma
-        # honestidade já usada no ramo "[OK] concluído" alguns parágrafos
-        # acima ("no total (histórico completo)").
+        # não só desta) - mostrar isso na linha de andamento ("4189 multas
+        # no total...") confundia o usuário, que via um número grande logo
+        # nos primeiros % de uma varredura recém-começada.
         # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário): mostrar só o
         # % escondia em qual etapa exata o worker estava (ex.: "24/427") -
         # útil pra saber se está travado num ponto específico ou avançando
@@ -176,12 +173,15 @@ def _status_legivel(log_path: Path) -> str:
         # (que exige a seção VERIFICAÇÃO DE COMPLETUDE já escrita no log)
         # representa conclusão de verdade - este texto não pode parecer
         # igual a esse.
+        # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário, revendo a GUI
+        # depois das mudanças de hoje): o total histórico ("4191 multas no
+        # total...") na linha de andamento não ajudava - só o progresso
+        # (%/fração) importa enquanto ainda está rodando. O total de verdade
+        # (quantas foram verificadas, quantas são novas) passou a aparecer
+        # só no resumo final, depois de consolidar (ver executar_robo_gui.py).
         if total_i and atual_i >= total_i:
-            return (
-                f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de "
-                f"confirmar 100% - {processados} multas no total (histórico, inclui execuções anteriores)"
-            )
-        return f"{pct}% concluído ({atual}/{total}) - {processados} multas no total (histórico, inclui execuções anteriores)"
+            return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
+        return f"{pct}% concluído ({atual}/{total})"
 
     # ⚠️ Achado ao vivo em 23/09/2026 (mesmo teste): com "[Progresso]" só
     # aparecendo a cada 10 itens, e cada worker cobrindo ~85 itens no
@@ -217,6 +217,23 @@ def _acompanhar_progresso(processos: list[subprocess.Popen], intervalo_segundos:
         if all(p.poll() is not None for p in processos):
             break
         time.sleep(intervalo_segundos)
+
+
+def _contar_linhas_planilha(caminho: Path) -> int:
+    """Quantas linhas de dado a planilha final tem agora (sem contar o
+    cabeçalho) - 0 se o arquivo ainda não existir (1ª execução de sempre).
+    Usado pra reportar, no resumo final, quantas multas são novas nesta
+    execução (diferença entre a contagem antes e depois de consolidar -
+    ver executar_robo_gui.py, pedido do usuário em 24/09/2026)."""
+    if not caminho.exists():
+        return 0
+    from openpyxl import load_workbook
+
+    wb = load_workbook(str(caminho), read_only=True)
+    try:
+        return max(wb.active.max_row - 1, 0)
+    finally:
+        wb.close()
 
 
 def _consolidar_planilha_final() -> None:

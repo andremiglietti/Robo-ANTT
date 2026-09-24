@@ -22,23 +22,28 @@ def test_log_inexistente_diz_iniciando(tmp_path):
     assert _status_legivel(caminho) == "iniciando..."
 
 
-def test_progresso_no_meio_da_execucao_nao_confunde_total_historico_com_desta_execucao(tmp_path):
+def test_progresso_no_meio_da_execucao_mostra_so_percentual_e_fracao(tmp_path):
     """Achado ao vivo em 23/09/2026 (teste de login real da GUI): o
     usuário viu "11% concluído - 4189 multas encontradas até agora" logo
     no início de uma execução nova e estranhou - "4189" é o total
     HISTÓRICO do checkpoint (execuções anteriores incluídas), não algo
-    achado nos primeiros segundos desta execução. A frase precisa deixar
-    isso claro, não sugerir que é tudo novo."""
+    achado nos primeiros segundos desta execução.
+
+    Corrigido uma 1ª vez em 23/09/2026 deixando a frase mais honesta
+    ("histórico, inclui execuções anteriores"); corrigido de novo (mais a
+    fundo) em 24/09/2026 a pedido direto do usuário revendo a GUI: o
+    número histórico simplesmente não ajuda na linha de andamento - só
+    percentual e fração importam enquanto ainda está rodando. O total de
+    verdade (quantas verificadas, quantas novas) passou a aparecer só no
+    resumo final, depois de consolidar (ver executar_robo_gui.py)."""
     log = _escrever_log(
         tmp_path,
         "[Progresso] 47/427 combinação(ões) CNPJ×tipo tentada(s) | "
         "total geral: 4189 processados, 0 falhas pendentes | decorrido: 5m00s",
     )
     status = _status_legivel(log)
-    assert status.startswith("11% concluído")
-    assert "(47/427)" in status  # achado em 24/09/2026: mostrar a fração real, não só o %
-    assert "histórico" in status  # não pode parecer que é tudo novo desta execução
-    assert "encontradas até agora" not in status  # frase antiga, ambígua - não pode voltar
+    assert status == "11% concluído (47/427)"
+    assert "4189" not in status  # número histórico não pertence mais à linha de andamento
 
 
 def test_parou_reporta_sessao_expirada():
