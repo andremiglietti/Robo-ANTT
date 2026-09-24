@@ -162,7 +162,11 @@ def _status_legivel(log_path: Path) -> str:
         # tinha acabado de começar. Frase corrigida pra bater com a mesma
         # honestidade já usada no ramo "[OK] concluído" alguns parágrafos
         # acima ("no total (histórico completo)").
-        return f"{pct}% concluído - {processados} multas no total (histórico, inclui execuções anteriores)"
+        # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário): mostrar só o
+        # % escondia em qual etapa exata o worker estava (ex.: "24/427") -
+        # útil pra saber se está travado num ponto específico ou avançando
+        # de verdade. Fração explícita acrescentada, mantendo o %.
+        return f"{pct}% concluído ({atual}/{total}) - {processados} multas no total (histórico, inclui execuções anteriores)"
 
     # ⚠️ Achado ao vivo em 23/09/2026 (mesmo teste): com "[Progresso]" só
     # aparecendo a cada 10 itens, e cada worker cobrindo ~85 itens no
@@ -176,7 +180,7 @@ def _status_legivel(log_path: Path) -> str:
     if achados_item:
         atual, total = achados_item[-1]
         pct = int(atual) * 100 // int(total) if int(total) else 0
-        return f"{pct}% concluído - trabalhando (combinação {atual} de {total})"
+        return f"{pct}% concluído ({atual}/{total}) - trabalhando..."
 
     return "trabalhando... (ainda sem número de progresso disponível)"
 

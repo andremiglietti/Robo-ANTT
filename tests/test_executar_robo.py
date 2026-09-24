@@ -36,6 +36,7 @@ def test_progresso_no_meio_da_execucao_nao_confunde_total_historico_com_desta_ex
     )
     status = _status_legivel(log)
     assert status.startswith("11% concluído")
+    assert "(47/427)" in status  # achado em 24/09/2026: mostrar a fração real, não só o %
     assert "histórico" in status  # não pode parecer que é tudo novo desta execução
     assert "encontradas até agora" not in status  # frase antiga, ambígua - não pode voltar
 
@@ -76,11 +77,11 @@ def test_antes_do_1o_checkpoint_de_10_usa_a_linha_de_item_como_sinal_de_vida(tmp
         "[Item 2/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Cargas] sem processos\n",
     )
     status = _status_legivel(log)
-    assert status == "2% concluído - trabalhando (combinação 2 de 86)"
+    assert status == "2% concluído (2/86) - trabalhando..."
 
 
 def test_item_sem_cnpj_no_meio_nao_quebra_o_parsing(tmp_path):
     """Visto ao vivo: às vezes o CNPJ vem vazio entre os "|" - o parsing do
     número de item/total não pode depender do que tem depois."""
     log = _escrever_log(tmp_path, "[Item 13/86 | - YARA BRASIL FERTILIZANTES S.A | Passageiros Internacional] sem processos\n")
-    assert _status_legivel(log) == "15% concluído - trabalhando (combinação 13 de 86)"
+    assert _status_legivel(log) == "15% concluído (13/86) - trabalhando..."
