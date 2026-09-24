@@ -101,9 +101,22 @@ def calcular_completude(session_file: Path | None = None) -> dict:
     # Agora as falhas de TODOS os checkpoints também são somadas e viram
     # parte do veredito final.
     falhas_por_checkpoint: dict[str, dict] = {}
+    # ⚠️ Achado na revisão crítica de 24/09/2026: json.loads() aqui não tinha
+    # NENHUM try/except - 1 checkpoint corrompido (de qualquer worker)
+    # derrubava o relatório da empresa INTEIRA com um traceback cru, em vez
+    # de reportar "faltam X checkpoints ilegíveis" e mostrar o resto. Agora
+    # um checkpoint corrompido é pulado (registrado à parte) sem impedir o
+    # relatório dos demais - e, por segurança, um checkpoint pulado nunca
+    # deixa o veredito final dizer "100%" (ver cem_por_cento abaixo), já que
+    # os dados dele (completude E falhas) ficam desconhecidos, não zerados.
+    checkpoints_corrompidos: list[str] = []
     caminhos_checkpoint = _todos_os_checkpoints()
     for caminho in caminhos_checkpoint:
-        estado = json.loads(caminho.read_text(encoding="utf-8"))
+        try:
+            estado = json.loads(caminho.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            checkpoints_corrompidos.append(caminho.name)
+            continue
         completas.update(estado.get("varreduras_completas", []))
         falhas = estado.get("falhas", {})
         if falhas:
@@ -126,14 +139,15 @@ def calcular_completude(session_file: Path | None = None) -> dict:
         "sessao_usada": str(sessao),
         "total_cnpjs": total_cnpjs,
         "total_tipos": len(TIPOS_FISCALIZACAO),
-        "checkpoints_lidos": [c.name for c in caminhos_checkpoint],
+        "checkpoints_lidos": [c.name for c in caminhos_checkpoint if c.name not in checkpoints_corrompidos],
+        "checkpoints_corrompidos": checkpoints_corrompidos,
         "total_esperado": total_esperado,
         "total_confirmadas": len(confirmadas),
         "paginacao_completa": paginacao_completa,
         "faltando_por_cnpj": faltando_por_cnpj,
         "total_falhas": total_falhas,
         "falhas_por_checkpoint": {nome: len(f) for nome, f in falhas_por_checkpoint.items()},
-        "cem_por_cento": paginacao_completa and not total_falhas,
+        "cem_por_cento": paginacao_completa and not total_falhas and not checkpoints_corrompidos,
     }
 
 
@@ -149,6 +163,12 @@ def _imprimir_relatorio(resultado: dict) -> None:
 
     print(f"Usando sessão: {resultado['sessao_usada']}")
     print(f"\nCheckpoints lidos: {len(resultado['checkpoints_lidos'])} ({', '.join(resultado['checkpoints_lidos'])})")
+    if resultado["checkpoints_corrompidos"]:
+        print(
+            f"[ATENÇÃO] {len(resultado['checkpoints_corrompidos'])} checkpoint(s) corrompido(s), "
+            f"ignorado(s) neste relatório: {', '.join(resultado['checkpoints_corrompidos'])} - "
+            "os dados de completude/falhas desses arquivos são DESCONHECIDOS, não zero."
+        )
     print(f"CNPJs reais no portal: {resultado['total_cnpjs']} | Tipos de fiscalização: {resultado['total_tipos']}")
     print(f"Combinações CNPJ×tipo esperadas: {resultado['total_esperado']}")
     pct = 100 * resultado["total_confirmadas"] / resultado["total_esperado"] if resultado["total_esperado"] else 0

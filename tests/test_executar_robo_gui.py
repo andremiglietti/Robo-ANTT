@@ -138,6 +138,23 @@ def test_resumo_completude_faltando_paginacao_e_falhas():
     assert "script" not in resumo.lower()
 
 
+def test_resumo_completude_so_checkpoint_corrompido_nao_gera_frase_quebrada():
+    """Achado na revisão crítica de 24/09/2026: com paginação completa e 0
+    falhas, mas 1+ checkpoint corrompido, "cem_por_cento" é False sem que
+    nenhuma das 2 checagens antigas dispare - sem o fix, a frase saía
+    "Ainda não está 100% completo: . É só rodar..." (detalhe vazio)."""
+    resultado = {
+        "cem_por_cento": False,
+        "paginacao_completa": True,
+        "faltando_por_cnpj": {},
+        "total_falhas": 0,
+        "checkpoints_corrompidos": ["checkpoint_worker_7.json"],
+    }
+    resumo = _resumo_completude_legivel(resultado)
+    assert ": ." not in resumo
+    assert "1 arquivo" in resumo
+
+
 def test_clicar_ja_fiz_login_libera_evento_e_desabilita_botao(app):
     _resetar(app, total_workers=1)
 

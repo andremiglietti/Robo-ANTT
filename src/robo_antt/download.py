@@ -10,7 +10,7 @@ from pathlib import Path
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from robo_antt.config import DOWNLOAD_DIR, SEL
+from robo_antt.config import DOWNLOAD_DIR, SEL, TENTATIVAS_LOCALIZAR_LINHA, TIMEOUT_DOWNLOAD_MS, TIMEOUT_LOCALIZAR_LINHA_MS
 from robo_antt.extracao import extrair_texto_pagina1, identificar_tipo_multa
 from robo_antt.io_seguro import substituir_com_retentativa
 from robo_antt.portal import fechar_modal_confirmacao_download, preparar_para_clicar
@@ -61,7 +61,7 @@ def _mensagem_tabela_vazia(page: Page) -> str | None:
     return None
 
 
-def _localizar_linha(page: Page, auto_infracao: str, tentativas: int = 3):
+def _localizar_linha(page: Page, auto_infracao: str, tentativas: int = TENTATIVAS_LOCALIZAR_LINHA):
     """Espera a linha desse auto aparecer na tabela antes de tentar clicar.
 
     ⚠️ Achado ao vivo em 17/09/2026 (teste de 3 workers em paralelo): ~50
@@ -86,7 +86,7 @@ def _localizar_linha(page: Page, auto_infracao: str, tentativas: int = 3):
     linha = page.locator(f'{SEL["tabela_resultado"]} tr', has_text=auto_infracao)
     for _ in range(tentativas):
         try:
-            linha.first.wait_for(state="visible", timeout=5000)
+            linha.first.wait_for(state="visible", timeout=TIMEOUT_LOCALIZAR_LINHA_MS)
             return linha
         except PlaywrightTimeoutError:
             continue
@@ -176,7 +176,7 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     # só aumenta o desperdício. 75s mantém uma folga modesta sobre o valor
     # original (60s) sem repetir o custo dos 180s, que não tinha
     # evidência nenhuma de benefício real.
-    with page.expect_download(timeout=75000) as download_info:
+    with page.expect_download(timeout=TIMEOUT_DOWNLOAD_MS) as download_info:
         botao_visualizar.click(no_wait_after=True)
     download = download_info.value
 

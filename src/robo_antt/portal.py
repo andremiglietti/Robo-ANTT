@@ -10,7 +10,28 @@ from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from robo_antt.config import PAUSA_ENTRE_ACOES_MS, SEL, SESSION_FILE, TIPOS_FISCALIZACAO, VISTAS_URL
+from robo_antt.config import (
+    INTERVALO_CONFIRMAR_CNPJ_MS,
+    PAUSA_ENTRE_ACOES_MS,
+    SEL,
+    SESSION_FILE,
+    TENTATIVAS_ABRIR_TELA_PROCESSOS,
+    TENTATIVAS_BUSCAR,
+    TENTATIVAS_CONFIRMAR_CNPJ,
+    TENTATIVAS_PROXIMA_PAGINA,
+    TIMEOUT_GOTO_TELA_PROCESSOS_MS,
+    TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_MS,
+    TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_OPCIONAL_MS,
+    TIMEOUT_MODAL_MENSAGEM_GENERICA_FECHAR_MS,
+    TIMEOUT_MODAL_MENSAGEM_GENERICA_MS,
+    TIMEOUT_MODAL_PROCESSANDO_MS,
+    TIMEOUT_PROCESSAMENTO_GRANDE_OCULTO_MS,
+    TIMEOUT_PROCESSAMENTO_GRANDE_VISIVEL_MS,
+    TIMEOUT_SELETOR_TELA_PROCESSOS_MS,
+    TIMEOUT_TABELA_MUDAR_MS,
+    TIPOS_FISCALIZACAO,
+    VISTAS_URL,
+)
 
 
 class SessaoExpiradaError(Exception):
@@ -59,7 +80,7 @@ def abrir_contexto(playwright, headless: bool = True, session_file: Path = SESSI
     return browser, context, page
 
 
-def abrir_tela_processos(page: Page, tentativas: int = 3) -> None:
+def abrir_tela_processos(page: Page, tentativas: int = TENTATIVAS_ABRIR_TELA_PROCESSOS) -> None:
     """Abre a tela de processos, distinguindo os 3 motivos possíveis de falha:
     sessão expirada, portal fora do ar (manutenção), ou lentidão passageira.
 
@@ -84,11 +105,11 @@ def abrir_tela_processos(page: Page, tentativas: int = 3) -> None:
     """
     for tentativa in range(1, tentativas + 1):
         try:
-            page.goto(VISTAS_URL, wait_until="commit", timeout=60000)
+            page.goto(VISTAS_URL, wait_until="commit", timeout=TIMEOUT_GOTO_TELA_PROCESSOS_MS)
         except PlaywrightTimeoutError:
             continue  # a navegação em si não completou a tempo - tenta de novo (sem inspecionar a página: nesse ponto o estado dela não é confiável)
         try:
-            page.wait_for_selector(SEL["representado"], state="attached", timeout=30000)
+            page.wait_for_selector(SEL["representado"], state="attached", timeout=TIMEOUT_SELETOR_TELA_PROCESSOS_MS)
             return  # sucesso
         except PlaywrightTimeoutError:
             if "Login.aspx" in page.url:
@@ -126,7 +147,7 @@ def listar_cnpjs(page: Page) -> list[dict]:
     return cnpjs
 
 
-def selecionar_cnpj(page: Page, indice: int, valor_esperado: str | None = None, tentativas: int = 10) -> None:
+def selecionar_cnpj(page: Page, indice: int, valor_esperado: str | None = None, tentativas: int = TENTATIVAS_CONFIRMAR_CNPJ) -> None:
     """Seleciona um CNPJ pelo índice (ver listar_cnpjs).
 
     O <select> real fica oculto (display:none) porque o portal usa o plugin
@@ -166,7 +187,7 @@ def selecionar_cnpj(page: Page, indice: int, valor_esperado: str | None = None, 
         atual = page.locator(SEL["representado"]).input_value()
         if atual == valor_esperado:
             return
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(INTERVALO_CONFIRMAR_CNPJ_MS)
     raise ValueError(
         f"CNPJ não confirmado no <select> depois de esperar - esperado {valor_esperado!r}, visto {atual!r}"
     )
@@ -206,7 +227,7 @@ def _primeira_linha(page: Page) -> str | None:
     return atual[0]["auto_infracao"] if atual else None
 
 
-def _esperar_modal_processando_sumir(page: Page, timeout: int = 30000) -> None:
+def _esperar_modal_processando_sumir(page: Page, timeout: int = TIMEOUT_MODAL_PROCESSANDO_MS) -> None:
     """Espera o modal "Processando..." (#Progress_DivProgress) sumir antes de
     clicar em outra coisa. Achado em 16/09/2026: ele às vezes ainda está na
     tela (bloqueando cliques) quando a próxima ação começa, mesmo depois da
@@ -219,7 +240,7 @@ def _esperar_modal_processando_sumir(page: Page, timeout: int = 30000) -> None:
         pass  # talvez o modal nem exista nessa página nesse momento - segue o jogo
 
 
-def fechar_modal_confirmacao_download(page: Page, timeout: int = 45000, exigir: bool = False) -> None:
+def fechar_modal_confirmacao_download(page: Page, timeout: int = TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_MS, exigir: bool = False) -> None:
     """Fecha o modal "Vistas ao Processo Solicitada com Sucesso!" que
     aparece DEPOIS de cada download (clique na lupa). Ele fica aberto até
     ser fechado e bloqueia o próximo clique (erro "elemento intercepta o
@@ -246,7 +267,11 @@ def fechar_modal_confirmacao_download(page: Page, timeout: int = 45000, exigir: 
     `timeout` inteiro de espera toda vez - ver baixar_pdf()).
     """
     try:
-        page.wait_for_selector(SEL["modal_confirmacao_download"], state="visible", timeout=timeout if exigir else 2000)
+        page.wait_for_selector(
+            SEL["modal_confirmacao_download"],
+            state="visible",
+            timeout=timeout if exigir else TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_OPCIONAL_MS,
+        )
     except PlaywrightTimeoutError:
         return  # não apareceu dessa vez - segue o jogo, não é bloqueante
     if page.locator(SEL["modal_confirmacao_nao_responder"]).count():
@@ -255,7 +280,7 @@ def fechar_modal_confirmacao_download(page: Page, timeout: int = 45000, exigir: 
     page.wait_for_selector(SEL["modal_confirmacao_download"], state="hidden", timeout=timeout)
 
 
-def fechar_modal_mensagem_generica(page: Page, timeout: int = 2000) -> None:
+def fechar_modal_mensagem_generica(page: Page, timeout: int = TIMEOUT_MODAL_MENSAGEM_GENERICA_MS) -> None:
     """Fecha o modal de mensagem genérico do portal (`#divMensagem`) se
     estiver na tela - usado pra erros/avisos do servidor (ex.: visto ao vivo
     em 16/09/2026 associado a alguns downloads que vieram com problema, tipo
@@ -269,7 +294,7 @@ def fechar_modal_mensagem_generica(page: Page, timeout: int = 2000) -> None:
         return
     if page.locator(SEL["modal_mensagem_generica_ok"]).count():
         page.click(SEL["modal_mensagem_generica_ok"])
-        page.wait_for_selector(SEL["modal_mensagem_generica"], state="hidden", timeout=15000)
+        page.wait_for_selector(SEL["modal_mensagem_generica"], state="hidden", timeout=TIMEOUT_MODAL_MENSAGEM_GENERICA_FECHAR_MS)
 
 
 def preparar_para_clicar(page: Page) -> None:
@@ -287,7 +312,11 @@ def preparar_para_clicar(page: Page) -> None:
     fechar_modal_mensagem_generica(page)
 
 
-def _esperar_processamento_grande(page: Page, timeout_visivel: int = 5000, timeout_oculto: int = 600000) -> None:
+def _esperar_processamento_grande(
+    page: Page,
+    timeout_visivel: int = TIMEOUT_PROCESSAMENTO_GRANDE_VISIVEL_MS,
+    timeout_oculto: int = TIMEOUT_PROCESSAMENTO_GRANDE_OCULTO_MS,
+) -> None:
     """Espera o modal "Processando..." aparecer e REALMENTE sumir, com um
     prazo bem mais generoso (10min) do que qualquer busca normal precisaria
     - chamado logo depois de clicar em "Pesquisar" ou "próxima página",
@@ -323,7 +352,7 @@ def _esperar_processamento_grande(page: Page, timeout_visivel: int = 5000, timeo
         pass
 
 
-def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = 30000) -> None:
+def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int = TIMEOUT_TABELA_MUDAR_MS) -> None:
     """Espera até a 1ª linha da tabela ser diferente de `valor_anterior`, ou
     até aparecer "Nenhum registro encontrado" - detecta o fim do AJAX sem
     depender de wait_for_load_state, que trava nessa página (ver goto acima).
@@ -359,7 +388,7 @@ def _esperar_tabela_mudar(page: Page, valor_anterior: str | None, timeout: int =
     page.wait_for_timeout(300)
 
 
-def buscar(page: Page, tentativas: int = 3) -> None:
+def buscar(page: Page, tentativas: int = TENTATIVAS_BUSCAR) -> None:
     """Clica em Pesquisar e espera a tabela terminar de carregar.
 
     ⚠️ O campo "Tipo de Fiscalização" tem que estar preenchido antes de
@@ -398,7 +427,7 @@ def info_paginacao(page: Page) -> tuple[int, int]:
     return int(atual), int(total)
 
 
-def ir_proxima_pagina(page: Page, tentativas: int = 3) -> None:
+def ir_proxima_pagina(page: Page, tentativas: int = TENTATIVAS_PROXIMA_PAGINA) -> None:
     """⚠️ Retentativa adicionada em 17/09/2026 (mesmo padrão de buscar()):
     um timeout aqui sem retentativa derrubava a paginação inteira no meio,
     fazendo o orquestrador abandonar o resto das páginas silenciosamente -

@@ -54,7 +54,7 @@ class ChecklistEmUsoError(Exception):
     isso nunca mais depender de alguém perceber a tempo."""
 
 
-def adquirir_trava(checkpoint_path: Path) -> Path:
+def adquirir_trava(checkpoint_path: Path, tentativas: int = 5, espera_segundos: float = 0.3) -> Path:
     """Cria um arquivo de trava (.lock) ao lado do checkpoint, impedindo 2
     execuções simultâneas usando o MESMO checkpoint - levanta
     ChecklistEmUsoError se já existir uma trava de um processo AINDA
@@ -63,27 +63,71 @@ def adquirir_trava(checkpoint_path: Path) -> Path:
     a trava velha sozinho e segue em frente - não trava o robô pra sempre
     por causa de uma trava "fantasma".
 
+    ⚠️ Revisão em 24/09/2026 (auditoria crítica pedida pelo usuário): a
+    versão original fazia `trava.exists()` e só depois `trava.write_text(...)`
+    - 2 passos separados, sem nada atômico entre eles (TOCTOU: 2 processos
+    podiam passar pela checagem "não existe" quase juntos, e o 2º write
+    sobrescrevia o 1º sem erro nenhum). Corrigido usando criação atômica
+    (`os.open(..., O_CREAT | O_EXCL)`, que no SO só cria o arquivo se ele
+    realmente não existir ainda, e falha com `FileExistsError` se outro
+    processo criou primeiro) - só um dos processos concorrentes consegue
+    criar o arquivo de verdade.
+
+    Também corrigido: a versão original tratava QUALQUER trava com
+    conteúdo ilegível (`ValueError`/`OSError` ao converter pra int) como
+    "fantasma" e apagava na hora - mas um conteúdo ilegível também pode ser
+    só a janela estreitíssima entre o processo concorrente ter CRIADO o
+    arquivo e ainda não ter escrito o PID dentro - apagar nesse caso podia
+    deixar os 2 processos pensando que têm a trava. Agora só apaga uma
+    trava depois de CONFIRMAR (via `_processo_ainda_rodando`) que o PID
+    gravado nela está morto de verdade - conteúdo ilegível vira uma
+    retentativa curta (a suposição é que vai resolver sozinho em
+    milissegundos), não uma remoção otimista.
+
     Chamar sempre em par com liberar_trava(), idealmente num try/finally
     que cubra a execução inteira (ver orquestrador.rodar())."""
     trava = checkpoint_path.with_name(checkpoint_path.name + ".lock")
-    if trava.exists():
-        pid_antigo = None
-        try:
-            pid_antigo = int(trava.read_text(encoding="utf-8").strip())
-        except (ValueError, OSError):
-            pass
-        if pid_antigo and _processo_ainda_rodando(pid_antigo):
-            raise ChecklistEmUsoError(
-                f"Já existe outra execução usando '{checkpoint_path.name}' agora mesmo "
-                f"(processo {pid_antigo} ainda rodando) - espere ela terminar antes de "
-                "rodar de novo com o mesmo worker/checkpoint. Se tiver certeza de que "
-                f"aquele processo já não existe mais (ex.: apagado sem querer), apague "
-                f"manualmente o arquivo '{trava.name}' e tente de novo."
-            )
-        trava.unlink(missing_ok=True)  # trava "fantasma" de um processo que já morreu - remove e segue
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    trava.write_text(str(os.getpid()), encoding="utf-8")
-    return trava
+
+    for tentativa in range(tentativas):
+        try:
+            fd = os.open(trava, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            pid_antigo = _ler_pid_da_trava(trava)
+            if pid_antigo is None:
+                # conteúdo vazio/ilegível - provavelmente outro processo no
+                # meio da própria criação (ver docstring acima) - espera um
+                # pouco e tenta de novo, em vez de assumir "fantasma".
+                if tentativa < tentativas - 1:
+                    time.sleep(espera_segundos)
+                continue
+            if _processo_ainda_rodando(pid_antigo):
+                raise ChecklistEmUsoError(
+                    f"Já existe outra execução usando '{checkpoint_path.name}' agora mesmo "
+                    f"(processo {pid_antigo} ainda rodando) - espere ela terminar antes de "
+                    "rodar de novo com o mesmo worker/checkpoint. Se tiver certeza de que "
+                    f"aquele processo já não existe mais (ex.: apagado sem querer), apague "
+                    f"manualmente o arquivo '{trava.name}' e tente de novo."
+                )
+            trava.unlink(missing_ok=True)  # trava "fantasma" CONFIRMADA (PID morto) - remove e tenta de novo
+        else:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(str(os.getpid()))
+            return trava
+
+    raise ChecklistEmUsoError(
+        f"Não foi possível adquirir a trava de '{checkpoint_path.name}' depois de {tentativas} "
+        f"tentativas - o arquivo '{trava.name}' continua num estado ambíguo (conteúdo ilegível "
+        "que não resolveu sozinho). Verifique manualmente se há outro processo rodando antes de "
+        "apagar esse arquivo."
+    )
+
+
+def _ler_pid_da_trava(trava: Path) -> int | None:
+    try:
+        return int(trava.read_text(encoding="utf-8").strip())
+    except (ValueError, OSError):
+        return None
 
 
 def liberar_trava(trava: Path) -> None:

@@ -73,7 +73,16 @@ def _resumo_completude_legivel(resultado: dict) -> str:
         partes.append(f"ainda falta verificar {n} combinação(ões) de CNPJ/tipo de multa")
     if resultado["total_falhas"]:
         partes.append(f"{resultado['total_falhas']} documento(s) específico(s) ainda não baixaram com sucesso")
-    detalhe = " e ".join(partes)
+    # ⚠️ Achado na revisão crítica de 24/09/2026: se "cem_por_cento" for
+    # False só por causa de checkpoint(s) corrompido(s) (paginação completa
+    # e zero falhas, mas 1+ checkpoint ilegível), as 2 checagens acima não
+    # disparavam - "detalhe" ficava vazio, gerando a frase quebrada "Ainda
+    # não está 100% completo: . É só rodar...". Corrigido com essa 3ª causa
+    # possível, sempre que checkpoints_corrompidos existir.
+    if resultado.get("checkpoints_corrompidos"):
+        n = len(resultado["checkpoints_corrompidos"])
+        partes.append(f"{n} arquivo(s) de progresso interno ficaram ilegíveis e precisam de atenção técnica")
+    detalhe = " e ".join(partes) if partes else "não foi possível confirmar todos os detalhes"
     return f"Ainda não está 100% completo: {detalhe}. É só rodar este programa de novo que ele tenta terminar sozinho."
 
 

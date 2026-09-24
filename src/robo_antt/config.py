@@ -59,6 +59,40 @@ def planilha_worker(worker_id: int) -> Path:
 # CLAUDE.md antes de reduzir esse valor.
 PAUSA_ENTRE_ACOES_MS = 2000
 
+# --- Timeouts e contagens de retentativa do portal/download ---------------
+# Centralizados aqui em 24/09/2026 (revisão crítica pedida pelo usuário):
+# antes, cada valor era um default de parâmetro espalhado inline em
+# portal.py/download.py - ajustar qualquer um deles (ex.: se o portal ficar
+# mais lento no futuro) exigia caçar em vários arquivos/funções diferentes.
+# Cada valor abaixo mantém o número original (nenhum comportamento muda),
+# só a localização - o histórico/motivo de cada um continua documentado no
+# docstring da função que o usa em portal.py/download.py.
+TIMEOUT_GOTO_TELA_PROCESSOS_MS = 60000
+TIMEOUT_SELETOR_TELA_PROCESSOS_MS = 30000
+TENTATIVAS_ABRIR_TELA_PROCESSOS = 3
+
+TENTATIVAS_CONFIRMAR_CNPJ = 10
+INTERVALO_CONFIRMAR_CNPJ_MS = 500
+
+TIMEOUT_MODAL_PROCESSANDO_MS = 30000
+TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_MS = 45000
+TIMEOUT_MODAL_CONFIRMACAO_DOWNLOAD_OPCIONAL_MS = 2000
+TIMEOUT_MODAL_MENSAGEM_GENERICA_MS = 2000
+TIMEOUT_MODAL_MENSAGEM_GENERICA_FECHAR_MS = 15000
+
+TIMEOUT_PROCESSAMENTO_GRANDE_VISIVEL_MS = 5000
+TIMEOUT_PROCESSAMENTO_GRANDE_OCULTO_MS = 600000  # 10min - ver _esperar_processamento_grande() em portal.py
+
+TIMEOUT_TABELA_MUDAR_MS = 30000
+TENTATIVAS_BUSCAR = 3
+TENTATIVAS_PROXIMA_PAGINA = 3
+
+TENTATIVAS_LOCALIZAR_LINHA = 3
+TIMEOUT_LOCALIZAR_LINHA_MS = 5000
+# 60s -> 180s -> 75s (ver histórico completo em download.py, baixar_pdf()) -
+# valor final decidido em 23/09/2026 com base em evidência real de produção.
+TIMEOUT_DOWNLOAD_MS = 75000
+
 # Seletores confirmados em 15/09/2026 a partir do outerHTML real do portal
 # (ver codigos_site/vistas_ao_processo.docx e codigos_site/tabela_pesquisar.txt).
 # O portal é ASP.NET WebForms — os ids reais têm o prefixo "Corpo_".
