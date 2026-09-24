@@ -114,6 +114,25 @@ def test_progresso_100_por_cento_nao_diz_concluido(tmp_path):
     assert "100%" in status  # ainda menciona 100%, mas não como "concluído"
 
 
+def test_item_mais_recente_prevalece_sobre_progresso_desatualizado(tmp_path):
+    """Achado ao vivo em 24/09/2026 (usuário testando com 10 workers reais):
+    depois do 1º checkpoint de 10, o número ficava "preso" nesse valor e só
+    pulava de 10 em 10 nos checkpoints seguintes - mesmo "[Item X/Y]" (a
+    cada item, sempre mais atual) já tendo o número certo no log o tempo
+    todo. Aqui: "[Progresso]" parou no item 10, mas já tem 3 "[Item]"
+    depois disso (13, 14, 15) - o status tem que refletir 15, não 10."""
+    log = _escrever_log(
+        tmp_path,
+        "[Progresso] 10/86 combinação(ões) CNPJ×tipo tentada(s) | "
+        "total geral: 100 processados, 0 falhas pendentes | decorrido: 1m00s\n"
+        "[Item 13/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Cargas] sem processos\n"
+        "[Item 14/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Passageiros] sem processos\n"
+        "[Item 15/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Cargas Internacional] sem processos\n",
+    )
+    status = _status_legivel(log)
+    assert status == "17% concluído (15/86)"
+
+
 def test_item_100_por_cento_nao_diz_concluido(tmp_path):
     """Mesmo achado do teste acima, mas pelo ramo de fallback ([Item X/Y]),
     usado antes do 1º checkpoint de 10 - também não pode dizer "concluído"

@@ -149,70 +149,46 @@ def _status_legivel(log_path: Path) -> str:
         m = re.search(r"Total processados.*?:\s*(\d+)", texto)
         total = m.group(1) if m else "vários"
         return f"[OK] concluído - {total} multas no total (histórico completo)"
-    achados = _RE_PROGRESSO.findall(texto)
-    if achados:
-        atual, total, _processados_historico = achados[-1]  # não usado mais aqui - ver comentário abaixo
-        atual_i, total_i = int(atual), int(total)
-        pct = atual_i * 100 // total_i if total_i else 0
-        # ⚠️ Achado ao vivo em 23/09/2026 (durante o teste de login real da
-        # GUI): "processados" aqui é o total HISTÓRICO acumulado no
-        # checkpoint (soma de TODAS as execuções anteriores desse worker,
-        # não só desta) - mostrar isso na linha de andamento ("4189 multas
-        # no total...") confundia o usuário, que via um número grande logo
-        # nos primeiros % de uma varredura recém-começada.
-        # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário): mostrar só o
-        # % escondia em qual etapa exata o worker estava (ex.: "24/427") -
-        # útil pra saber se está travado num ponto específico ou avançando
-        # de verdade. Fração explícita acrescentada, mantendo o %.
-        # ⚠️ Achado em 24/09/2026 (workers encerrados à força mostravam
-        # "100% concluído" com dezenas de falhas pendentes nunca
-        # reportadas): "100%" aqui só significa que o LOOP PRINCIPAL passou
-        # por todas as combinações - não que terminou sem pendência (as
-        # retentativas de paginação/falha de documento, e o relatório final,
-        # podem nem ter rodado ainda). Só o ramo "[OK] concluído" acima
-        # (que exige a seção VERIFICAÇÃO DE COMPLETUDE já escrita no log)
-        # representa conclusão de verdade - este texto não pode parecer
-        # igual a esse.
-        # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário, revendo a GUI
-        # depois das mudanças de hoje): o total histórico ("4191 multas no
-        # total...") na linha de andamento não ajudava - só o progresso
-        # (%/fração) importa enquanto ainda está rodando. O total de verdade
-        # (quantas foram verificadas, quantas são novas) passou a aparecer
-        # só no resumo final, depois de consolidar (ver executar_robo_gui.py).
-        if total_i and atual_i >= total_i:
-            return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
-        return f"{pct}% concluído ({atual}/{total})"
-
-    # ⚠️ Achado ao vivo em 23/09/2026 (mesmo teste): com "[Progresso]" só
-    # aparecendo a cada 10 itens, e cada worker cobrindo ~85 itens no
-    # total, a pessoa ficava olhando pra "trabalhando... (ainda sem número
-    # de progresso disponível)" por vários minutos sem nenhum sinal de que
-    # o robô estava fazendo alguma coisa de verdade (mesmo já tendo
-    # processado itens reais, alguns com centenas de registros). Usa a
-    # última linha "[Item X/Y | ...]" (impressa a cada item, não só a cada
-    # 10) como sinal de vida imediato antes do 1º checkpoint de 10.
+    # ⚠️ Achado ao vivo em 24/09/2026 (usuário testando com 10 workers reais):
+    # a versão antiga checava "[Progresso]" ANTES de "[Item]" - "[Progresso]"
+    # só é impresso a cada 10 itens (ver orquestrador.py), mas UMA VEZ que
+    # aparece no log, o número passava a "pular de 10 em 10" pra sempre
+    # (10, 20, 30...) mesmo com "[Item X/Y | ...]" (impresso a CADA item,
+    # sempre pelo menos tão atual quanto "[Progresso]" - o mesmo
+    # `orquestrador.py` imprime as duas linhas, "[Item]" pra TODO item e
+    # "[Progresso]" só a cada 10º) disponível no log o tempo todo com o
+    # número certo, de 1 em 1. **Corrigido:** "[Item]" passa a ser a fonte
+    # PRINCIPAL do progresso (não só um fallback pré-1º-checkpoint como
+    # antes) - só cai pra "[Progresso]" se não houver NENHUMA linha "[Item]"
+    # no log (não deveria acontecer em log atual, mas mantido por segurança
+    # contra formato antigo/incompleto).
     achados_item = _RE_ITEM.findall(texto)
     if achados_item:
         atual, total = achados_item[-1]
-        atual_i, total_i = int(atual), int(total)
-        pct = atual_i * 100 // total_i if total_i else 0
-        # mesma ressalva do ramo "[Progresso]" acima: 100% aqui é só o loop
-        # principal, não uma conclusão confirmada de verdade.
-        if total_i and atual_i >= total_i:
-            return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
-        # ⚠️ Achado ao vivo em 24/09/2026 (usuário revendo a GUI com 10
-        # workers reais): esse ramo ainda tinha "- trabalhando..." no final
-        # enquanto o ramo "[Progresso]" acima (mesmo formato "X% concluído
-        # (Y/Z)") já tinha perdido esse sufixo na simplificação de mais
-        # cedo hoje - o resultado era alguns workers mostrando "trabalhando..."
-        # e outros não, sem nenhum motivo visível pra pessoa que está
-        # olhando (é só uma questão de já ter passado ou não do 1º
-        # checkpoint de 10 itens - um detalhe interno, não algo que devia
-        # aparecer como inconsistência na tela). Removido pra igualar os 2
-        # ramos numéricos de verdade.
-        return f"{pct}% concluído ({atual}/{total})"
+    else:
+        achados_progresso = _RE_PROGRESSO.findall(texto)
+        if not achados_progresso:
+            return "trabalhando... (ainda sem número de progresso disponível)"
+        atual, total, _processados_historico = achados_progresso[-1]  # 3º grupo não usado mais aqui
 
-    return "trabalhando... (ainda sem número de progresso disponível)"
+    atual_i, total_i = int(atual), int(total)
+    pct = atual_i * 100 // total_i if total_i else 0
+    # ⚠️ Achado em 24/09/2026 (workers encerrados à força mostravam "100%
+    # concluído" com dezenas de falhas pendentes nunca reportadas): "100%"
+    # aqui só significa que o LOOP PRINCIPAL passou por todas as
+    # combinações - não que terminou sem pendência (as retentativas de
+    # paginação/falha de documento, e o relatório final, podem nem ter
+    # rodado ainda). Só o ramo "[OK] concluído" acima (que exige a seção
+    # VERIFICAÇÃO DE COMPLETUDE já escrita no log) representa conclusão de
+    # verdade - este texto não pode parecer igual a esse.
+    if total_i and atual_i >= total_i:
+        return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
+    # ⚠️ Achado ao vivo em 24/09/2026 (pedido do usuário, revendo a GUI):
+    # o total histórico ("4191 multas no total...") na linha de andamento
+    # não ajudava - só o progresso (%/fração) importa enquanto ainda está
+    # rodando. O total de verdade (quantas verificadas, quantas novas)
+    # aparece só no resumo final, depois de consolidar (executar_robo_gui.py).
+    return f"{pct}% concluído ({atual}/{total})"
 
 
 def _acompanhar_progresso(processos: list[subprocess.Popen], intervalo_segundos: int = 60) -> None:
