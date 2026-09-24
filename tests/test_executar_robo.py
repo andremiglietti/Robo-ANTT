@@ -85,3 +85,32 @@ def test_item_sem_cnpj_no_meio_nao_quebra_o_parsing(tmp_path):
     número de item/total não pode depender do que tem depois."""
     log = _escrever_log(tmp_path, "[Item 13/86 | - YARA BRASIL FERTILIZANTES S.A | Passageiros Internacional] sem processos\n")
     assert _status_legivel(log) == "15% concluído (13/86) - trabalhando..."
+
+
+def test_progresso_100_por_cento_nao_diz_concluido(tmp_path):
+    """Achado ao vivo em 24/09/2026: workers encerrados à força no meio das
+    retentativas mostravam "100% concluído" mesmo com dezenas de falhas
+    pendentes nunca reportadas - "100%" no [Progresso] só significa que o
+    loop principal passou por todas as combinações, não que terminou sem
+    pendência (só o ramo "[OK] concluído", que exige a seção VERIFICAÇÃO DE
+    COMPLETUDE no log, representa isso). O texto não pode mais dizer
+    "concluído" nesse ponto."""
+    log = _escrever_log(
+        tmp_path,
+        "[Progresso] 427/427 combinação(ões) CNPJ×tipo tentada(s) | "
+        "total geral: 4189 processados, 80 falhas pendentes | decorrido: 5h00s",
+    )
+    status = _status_legivel(log)
+    assert "concluído" not in status
+    assert "(427/427)" in status
+    assert "100%" in status  # ainda menciona 100%, mas não como "concluído"
+
+
+def test_item_100_por_cento_nao_diz_concluido(tmp_path):
+    """Mesmo achado do teste acima, mas pelo ramo de fallback ([Item X/Y]),
+    usado antes do 1º checkpoint de 10 - também não pode dizer "concluído"
+    quando X == Y."""
+    log = _escrever_log(tmp_path, "[Item 86/86 | 92.660.604/9999-99 - YARA BRASIL FERTILIZANTES S/A | Cargas] sem processos\n")
+    status = _status_legivel(log)
+    assert "concluído" not in status
+    assert "(86/86)" in status

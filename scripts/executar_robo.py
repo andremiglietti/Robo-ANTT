@@ -152,7 +152,8 @@ def _status_legivel(log_path: Path) -> str:
     achados = _RE_PROGRESSO.findall(texto)
     if achados:
         atual, total, processados = achados[-1]
-        pct = int(atual) * 100 // int(total) if int(total) else 0
+        atual_i, total_i = int(atual), int(total)
+        pct = atual_i * 100 // total_i if total_i else 0
         # ⚠️ Achado ao vivo em 23/09/2026 (durante o teste de login real da
         # GUI): "processados" aqui é o total HISTÓRICO acumulado no
         # checkpoint (soma de TODAS as execuções anteriores desse worker,
@@ -166,6 +167,20 @@ def _status_legivel(log_path: Path) -> str:
         # % escondia em qual etapa exata o worker estava (ex.: "24/427") -
         # útil pra saber se está travado num ponto específico ou avançando
         # de verdade. Fração explícita acrescentada, mantendo o %.
+        # ⚠️ Achado em 24/09/2026 (workers encerrados à força mostravam
+        # "100% concluído" com dezenas de falhas pendentes nunca
+        # reportadas): "100%" aqui só significa que o LOOP PRINCIPAL passou
+        # por todas as combinações - não que terminou sem pendência (as
+        # retentativas de paginação/falha de documento, e o relatório final,
+        # podem nem ter rodado ainda). Só o ramo "[OK] concluído" acima
+        # (que exige a seção VERIFICAÇÃO DE COMPLETUDE já escrita no log)
+        # representa conclusão de verdade - este texto não pode parecer
+        # igual a esse.
+        if total_i and atual_i >= total_i:
+            return (
+                f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de "
+                f"confirmar 100% - {processados} multas no total (histórico, inclui execuções anteriores)"
+            )
         return f"{pct}% concluído ({atual}/{total}) - {processados} multas no total (histórico, inclui execuções anteriores)"
 
     # ⚠️ Achado ao vivo em 23/09/2026 (mesmo teste): com "[Progresso]" só
@@ -179,7 +194,12 @@ def _status_legivel(log_path: Path) -> str:
     achados_item = _RE_ITEM.findall(texto)
     if achados_item:
         atual, total = achados_item[-1]
-        pct = int(atual) * 100 // int(total) if int(total) else 0
+        atual_i, total_i = int(atual), int(total)
+        pct = atual_i * 100 // total_i if total_i else 0
+        # mesma ressalva do ramo "[Progresso]" acima: 100% aqui é só o loop
+        # principal, não uma conclusão confirmada de verdade.
+        if total_i and atual_i >= total_i:
+            return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
         return f"{pct}% concluído ({atual}/{total}) - trabalhando..."
 
     return "trabalhando... (ainda sem número de progresso disponível)"
