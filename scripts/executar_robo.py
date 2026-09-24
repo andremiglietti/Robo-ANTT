@@ -200,7 +200,17 @@ def _status_legivel(log_path: Path) -> str:
         # principal, não uma conclusão confirmada de verdade.
         if total_i and atual_i >= total_i:
             return f"passada principal terminou ({atual}/{total}) - conferindo pendências antes de confirmar 100%..."
-        return f"{pct}% concluído ({atual}/{total}) - trabalhando..."
+        # ⚠️ Achado ao vivo em 24/09/2026 (usuário revendo a GUI com 10
+        # workers reais): esse ramo ainda tinha "- trabalhando..." no final
+        # enquanto o ramo "[Progresso]" acima (mesmo formato "X% concluído
+        # (Y/Z)") já tinha perdido esse sufixo na simplificação de mais
+        # cedo hoje - o resultado era alguns workers mostrando "trabalhando..."
+        # e outros não, sem nenhum motivo visível pra pessoa que está
+        # olhando (é só uma questão de já ter passado ou não do 1º
+        # checkpoint de 10 itens - um detalhe interno, não algo que devia
+        # aparecer como inconsistência na tela). Removido pra igualar os 2
+        # ramos numéricos de verdade.
+        return f"{pct}% concluído ({atual}/{total})"
 
     return "trabalhando... (ainda sem número de progresso disponível)"
 

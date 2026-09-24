@@ -82,14 +82,17 @@ def test_antes_do_1o_checkpoint_de_10_usa_a_linha_de_item_como_sinal_de_vida(tmp
         "[Item 2/86 | 92.660.604/0001-82 - YARA BRASIL FERTILIZANTES S/A | Cargas] sem processos\n",
     )
     status = _status_legivel(log)
-    assert status == "2% concluído (2/86) - trabalhando..."
+    # achado ao vivo em 24/09/2026: "- trabalhando..." aqui só, e não no ramo
+    # "[Progresso]" (mesmo formato "X% concluído (Y/Z)"), fazia alguns
+    # workers mostrarem sufixo e outros não, sem nenhuma explicação visível.
+    assert status == "2% concluído (2/86)"
 
 
 def test_item_sem_cnpj_no_meio_nao_quebra_o_parsing(tmp_path):
     """Visto ao vivo: às vezes o CNPJ vem vazio entre os "|" - o parsing do
     número de item/total não pode depender do que tem depois."""
     log = _escrever_log(tmp_path, "[Item 13/86 | - YARA BRASIL FERTILIZANTES S.A | Passageiros Internacional] sem processos\n")
-    assert _status_legivel(log) == "15% concluído (13/86) - trabalhando..."
+    assert _status_legivel(log) == "15% concluído (13/86)"
 
 
 def test_progresso_100_por_cento_nao_diz_concluido(tmp_path):
