@@ -34,6 +34,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "src"))
 
 from robo_antt.config import PAUSA_ENTRE_ACOES_MS, PLANILHA_PATH, TIPOS_FISCALIZACAO  # noqa: E402
+from robo_antt.orquestrador import _selecionar_cnpj_com_recuperacao  # noqa: E402
 from robo_antt.planilha import abrir_ou_criar, atualizar_campos_vazios, salvar  # noqa: E402
 from robo_antt.portal import (  # noqa: E402
     PortalIndisponivelError,
@@ -43,7 +44,6 @@ from robo_antt.portal import (  # noqa: E402
     buscar,
     iterar_paginas_resultado,
     listar_cnpjs,
-    selecionar_cnpj,
     selecionar_tipo_fiscalizacao,
 )
 
@@ -54,6 +54,22 @@ def _log(msg: str) -> None:
     except UnicodeEncodeError:
         encoding = getattr(sys.stdout, "encoding", None) or "ascii"
         print(msg.encode(encoding, errors="replace").decode(encoding), flush=True)
+
+
+def _preencher_situacao_do_tipo(page, wb, tipo_value: str) -> int:
+    """Busca 1 tipo de fiscalização (CNPJ já selecionado) e preenche
+    Situação pra cada auto já conhecido - devolve quantas células
+    preencheu."""
+    selecionar_tipo_fiscalizacao(page, tipo_value)
+    buscar(page)
+    preenchidos = 0
+    for pagina in iterar_paginas_resultado(page):
+        for row in pagina:
+            situacao = row.get("situacao")
+            if not situacao:
+                continue
+            preenchidos += atualizar_campos_vazios(wb, row["auto_infracao"], {"situacao": situacao})
+    return preenchidos
 
 
 def main() -> None:
@@ -80,7 +96,13 @@ def main() -> None:
 
             for i, cnpj in enumerate(cnpjs, start=1):
                 try:
-                    selecionar_cnpj(page, cnpj["value"], valor_esperado=cnpj["value"])
+                    _selecionar_cnpj_com_recuperacao(page, cnpj)
+                except (SessaoExpiradaError, PortalIndisponivelError):
+                    # sobe pro except de fora, que salva e reporta de forma
+                    # limpa - achado ao vivo em 23-24/09/2026: um `except
+                    # Exception` genérico aqui engolia isso e ficava tentando
+                    # os CNPJs seguintes à toa (todos falhando do mesmo jeito).
+                    raise
                 except Exception as e:
                     _log(f"  [{i}/{len(cnpjs)}] {cnpj['texto']}: falha ao selecionar CNPJ ({e}) - pulando")
                     continue
@@ -90,15 +112,7 @@ def main() -> None:
                 for tipo_value, tipo_nome in TIPOS_FISCALIZACAO.items():
                     total_combinacoes_tentadas += 1
                     try:
-                        selecionar_tipo_fiscalizacao(page, tipo_value)
-                        buscar(page)
-                        for pagina in iterar_paginas_resultado(page):
-                            for row in pagina:
-                                situacao = row.get("situacao")
-                                if not situacao:
-                                    continue
-                                preenchidos = atualizar_campos_vazios(wb, row["auto_infracao"], {"situacao": situacao})
-                                atualizados_neste_cnpj += preenchidos
+                        atualizados_neste_cnpj += _preencher_situacao_do_tipo(page, wb, tipo_value)
                     except (SessaoExpiradaError, PortalIndisponivelError) as e:
                         _log(f"\n[PAROU] {e}")
                         salvar(wb, PLANILHA_PATH)
@@ -108,7 +122,30 @@ def main() -> None:
                         )
                         return
                     except Exception as e:
-                        _log(f"  [{i}/{len(cnpjs)}] {cnpj['texto']} | {tipo_nome}: erro ({e}) - pulando esse tipo")
+                        # ⚠️ Achado ao vivo em 23-24/09/2026 (ver CLAUDE.md): depois de
+                        # uma busca grande (CNPJ com ~1000 resultados), a página pode
+                        # ficar travada de vez - toda ação seguinte (até trocar de
+                        # tipo, um <select> simples) passa a estourar 30s, em
+                        # CASCATA (mesmo padrão já documentado em orquestrador.py,
+                        # 18/09/2026). Sem recuperação aqui, isso derrubaria os 57
+                        # CNPJs restantes um por um. Recarrega a tela do zero e
+                        # tenta esse MESMO tipo 1 vez mais antes de desistir de
+                        # verdade - mesma lógica de _selecionar_cnpj_com_recuperacao().
+                        _log(f"  [{i}/{len(cnpjs)}] {cnpj['texto']} | {tipo_nome}: erro ({e}) - recarregando e tentando mais 1x")
+                        try:
+                            abrir_tela_processos(page)
+                            _selecionar_cnpj_com_recuperacao(page, cnpj)
+                            atualizados_neste_cnpj += _preencher_situacao_do_tipo(page, wb, tipo_value)
+                        except (SessaoExpiradaError, PortalIndisponivelError) as e2:
+                            _log(f"\n[PAROU] {e2}")
+                            salvar(wb, PLANILHA_PATH)
+                            _log(
+                                f"Planilha salva com o progresso até aqui - {total_atualizado + atualizados_neste_cnpj} "
+                                "Situação(ões) preenchida(s). Rode de novo mais tarde pra continuar."
+                            )
+                            return
+                        except Exception as e2:
+                            _log(f"  [{i}/{len(cnpjs)}] {cnpj['texto']} | {tipo_nome}: continua falhando ({e2}) - pulando esse tipo")
                         continue
 
                 total_atualizado += atualizados_neste_cnpj
@@ -119,6 +156,21 @@ def main() -> None:
                 # salva a cada CNPJ - mesmo cuidado dos outros scripts (não perder
                 # progresso de uma execução longa se algo interromper no meio).
                 salvar(wb, PLANILHA_PATH)
+        except (SessaoExpiradaError, PortalIndisponivelError) as e:
+            # ⚠️ Achado ao vivo em 23-24/09/2026: `abrir_tela_processos()`/
+            # `listar_cnpjs()`, ANTES do laço de CNPJs, não tinham nenhum
+            # try/except - sessão expirando bem no início (aconteceu de
+            # verdade, entre duas execuções deste script) derrubava o
+            # processo com traceback cru em vez de reportar de forma
+            # limpa, igual todo o resto do projeto já faz (ver
+            # orquestrador.rodar()).
+            _log(f"\n[PAROU] {e}")
+            salvar(wb, PLANILHA_PATH)
+            _log(f"Planilha salva com o progresso até aqui - {total_atualizado} Situação(ões) preenchida(s).")
+        except Exception as e:  # nunca crashar sem salvar - mesma garantia do resto do projeto
+            _log(f"\n[ATENÇÃO] Erro inesperado: {e}")
+            salvar(wb, PLANILHA_PATH)
+            _log(f"Planilha salva com o progresso até aqui - {total_atualizado} Situação(ões) preenchida(s).")
         finally:
             browser.close()
 
