@@ -100,6 +100,21 @@ def _formatar_duracao(segundos: float) -> str:
     return f"{seg}s"
 
 
+def _combinacao_so_tem_falhas_permanentes(estado: dict, cnpj_value: str, tipo_value: str) -> bool:
+    """True só se TODAS as falhas pendentes dessa combinação CNPJ×tipo já
+    são "provavelmente permanentes" (ver checkpoint.falha_provavelmente_
+    permanente()) - usada pra decidir, DEPOIS da 1ª rodada de retentativa
+    de falhas (ver rodar()), se vale a pena gastar as rodadas 2 e 3 nessa
+    combinação ou não. Uma combinação com pelo menos 1 falha ainda "nova"
+    (poucas tentativas acumuladas) continua recebendo as rodadas normais -
+    só pula quando não sobra mais nenhuma falha que valha a pena insistir
+    dentro da mesma execução."""
+    autos_pendentes = [
+        auto for auto, cnpj_v, tipo_v in checkpoint.falhas_retentaveis(estado) if cnpj_v == cnpj_value and tipo_v == tipo_value
+    ]
+    return bool(autos_pendentes) and all(checkpoint.falha_provavelmente_permanente(estado, auto) for auto in autos_pendentes)
+
+
 def extrair_todos_campos(caminho_pdf: Path) -> dict:
     """Roda a extração completa (página 1 + boleto + notificação, se
     existirem) e devolve um dict só, pronto pra virar uma linha da planilha
@@ -614,6 +629,26 @@ def _rodar_impl(
                     # recalcula com base no que REALMENTE continua falhando
                     # depois desta rodada (não assume que tudo resolveu)
                     combinacoes = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in checkpoint.falhas_retentaveis(estado)}
+                    # ⚠️ Pedido do usuário em 24/09/2026: "não acho que vale a
+                    # pena tentar retentativas de baixar alguns arquivos que
+                    # já sabemos que tem falha... esses que já sabemos que são
+                    # um problema podíamos testar apenas uma vez". A rodada 1
+                    # (acima) já deu 1 chance pra TODAS as falhas, novas ou
+                    # antigas - a partir daqui, combinações cujas falhas
+                    # restantes já são "provavelmente permanentes" (várias
+                    # tentativas acumuladas entre execuções, sempre o mesmo
+                    # resultado - ver checkpoint.falha_provavelmente_
+                    # permanente()) não recebem mais rodadas: continuam
+                    # aparecendo no relatório final como pendentes (não ficam
+                    # escondidas), só não desperdiçam mais 2 rodadas inteiras
+                    # de repaginação nesta mesma execução. Combinações com
+                    # pelo menos 1 falha ainda "nova" continuam retentando
+                    # normalmente.
+                    combinacoes = {
+                        (cnpj_v, tipo_v)
+                        for cnpj_v, tipo_v in combinacoes
+                        if not _combinacao_so_tem_falhas_permanentes(estado, cnpj_v, tipo_v)
+                    }
                     tentativa_falha += 1
 
         except (SessaoExpiradaError, PortalIndisponivelError) as e:
@@ -707,14 +742,37 @@ def _rodar_impl(
         # possíveis em checkpoints salvos antes de hoje, formato antigo) não
         # têm como ser retentadas diretamente - só descobertas de novo por
         # acaso numa varredura que passe pela combinação certa.
-        legadas = len(estado["falhas"]) - len(checkpoint.falhas_retentaveis(estado))
-        detalhe_legadas = (
-            f" ({legadas} delas sem CNPJ/tipo registrado - de checkpoints salvos antes de 19/09/2026, "
-            "não retentáveis diretamente; as demais JÁ foram retentadas nesta execução e continuam falhando.)"
-            if legadas
-            else " (já retentadas diretamente nesta execução, até 3 vezes cada, e continuam falhando - "
-            "provavelmente um problema real do documento no servidor, não passageiro.)"
-        )
+        # ⚠️ Achado em 24/09/2026 (junto com a otimização de não gastar
+        # rodadas extras em falha já confirmada como permanente - ver
+        # _combinacao_so_tem_falhas_permanentes()): a frase antiga dizia
+        # "já retentadas... até 3 vezes cada" pra TODAS as falhas com
+        # cnpj/tipo - deixou de ser verdade pras falhas permanentes, que
+        # agora só recebem 1 tentativa por execução de propósito. O
+        # relatório final precisa distinguir as 3 categorias reais, senão
+        # fica impreciso sobre o que realmente foi tentado.
+        retentaveis = checkpoint.falhas_retentaveis(estado)
+        legadas = len(estado["falhas"]) - len(retentaveis)
+        permanentes = sum(1 for auto, _, _ in retentaveis if checkpoint.falha_provavelmente_permanente(estado, auto))
+        novas_ainda_falhando = len(retentaveis) - permanentes
+
+        partes_detalhe = []
+        if novas_ainda_falhando:
+            partes_detalhe.append(
+                f"{novas_ainda_falhando} já retentada(s) diretamente nesta execução (até 3 vezes cada) e "
+                "continua(m) falhando"
+            )
+        if permanentes:
+            partes_detalhe.append(
+                f"{permanentes} já confirmada(s) como problema permanente do servidor em execuções anteriores "
+                "(testada(s) só 1 vez nesta execução, por precaução, sem gastar as rodadas extras à toa)"
+            )
+        if legadas:
+            partes_detalhe.append(
+                f"{legadas} sem CNPJ/tipo registrado (checkpoint de antes de 19/09/2026) - não retentável "
+                "diretamente"
+            )
+        detalhe_legadas = " - " + "; ".join(partes_detalhe) + "." if partes_detalhe else ""
+
         _log(
             f"{rotulo_worker}[ATENÇÃO] {len(estado['falhas'])} auto(s) VISTO(S) na tabela mas NÃO baixado(s)/"
             "extraído(s) com sucesso (falha de documento específico - independe da paginação estar completa)."

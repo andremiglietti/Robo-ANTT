@@ -56,8 +56,18 @@ def carregar(caminho: Path = CHECKPOINT_FILE) -> dict:
         # hoje) viram um dict equivalente com cnpj/tipo_value=None, o que
         # sinaliza "não sabemos onde retentar essa - só descobrindo de novo
         # por acaso numa varredura que passe por aquela combinação".
+        # Migração (24/09/2026, pedido do usuário - ver marcar_falha() e
+        # falha_provavelmente_permanente()): "tentativas" é novo - entradas
+        # de antes de hoje viram 0 (não sabemos quantas vezes já falharam
+        # de verdade, mas 0 é seguro: só significa que essa falha específica
+        # ainda vai precisar acumular tentativas de novo antes de ser
+        # tratada como "provavelmente permanente", nunca o contrário).
         estado["falhas"] = {
-            auto: (info if isinstance(info, dict) else {"motivo": info, "cnpj": None, "tipo_value": None})
+            auto: (
+                {**info, "tentativas": info.get("tentativas", 0)}
+                if isinstance(info, dict)
+                else {"motivo": info, "cnpj": None, "tipo_value": None, "tentativas": 0}
+            )
             for auto, info in estado.get("falhas", {}).items()
         }
         # Achado na revisão crítica de 24/09/2026: "processados" ficava
@@ -109,8 +119,21 @@ def marcar_falha(estado: dict, auto_infracao: str, motivo: str, cnpj: str | None
     CNPJ×tipo ser revisitada por acaso numa execução futura - confirmado ao
     vivo que isso podia deixar falhas pendentes indefinidamente sem erro
     nenhum, sempre que o particionamento entre workers mudava de uma
-    execução pra outra."""
-    estado["falhas"][auto_infracao] = {"motivo": motivo, "cnpj": cnpj, "tipo_value": tipo_value}
+    execução pra outra.
+
+    `tentativas` (24/09/2026, pedido do usuário): conta quantas vezes essa
+    falha já foi registrada NO TOTAL - inclusive em execuções/dias
+    anteriores, não só dentro de uma execução (o contador é persistido no
+    checkpoint entre execuções). Usada por falha_provavelmente_permanente()
+    pra decidir quando parar de gastar rodadas extras de retentativa numa
+    falha que já se mostrou consistentemente não-passageira."""
+    tentativas_anteriores = estado["falhas"].get(auto_infracao, {}).get("tentativas", 0)
+    estado["falhas"][auto_infracao] = {
+        "motivo": motivo,
+        "cnpj": cnpj,
+        "tipo_value": tipo_value,
+        "tentativas": tentativas_anteriores + 1,
+    }
 
 
 def falhas_retentaveis(estado: dict) -> list[tuple[str, str, str]]:
@@ -125,6 +148,29 @@ def falhas_retentaveis(estado: dict) -> list[tuple[str, str, str]]:
         for auto, info in estado["falhas"].items()
         if info.get("cnpj") and info.get("tipo_value")
     ]
+
+
+# A partir de quantas tentativas (acumuladas entre execuções/dias, não só
+# dentro de 1 execução) uma falha passa a ser tratada como "provavelmente
+# permanente" - achado consistente ao longo do projeto (19-24/09/2026): o
+# cluster de ~180 documentos com timeout de download idêntico sobreviveu
+# a dezenas de tentativas em dias diferentes, sempre com o mesmo erro
+# exato - não é mais razoável tratar isso como instabilidade passageira.
+LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE = 3
+
+
+def falha_provavelmente_permanente(estado: dict, auto_infracao: str) -> bool:
+    """True se essa falha já acumulou tentativas suficientes pra não valer
+    mais a pena insistir várias vezes na MESMA execução (ver
+    LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE). Não significa "nunca mais
+    tentar" - ela continua recebendo 1 tentativa por execução (pra pegar o
+    caso raro de o servidor ter sido corrigido), só não recebe mais as
+    rodadas extras de retentativa dentro da mesma execução que uma falha
+    genuinamente nova recebe (ver orquestrador.rodar(), pedido do usuário
+    em 24/09/2026: "não acho que vale a pena tentar retentativas de baixar
+    alguns arquivos que já sabemos que tem falha")."""
+    info = estado["falhas"].get(auto_infracao)
+    return bool(info) and info.get("tentativas", 0) >= LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE
 
 
 def marcar_varredura_completa(estado: dict, cnpj: str, tipo_value: str) -> None:

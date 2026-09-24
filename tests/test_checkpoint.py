@@ -69,6 +69,47 @@ def test_falhas_retentaveis_so_inclui_falhas_com_cnpj_e_tipo(tmp_path):
     assert retentaveis == [("COM_INFO", "92660604000182", "2")]
 
 
+def test_marcar_falha_conta_tentativas_acumuladas(tmp_path):
+    """Achado/pedido do usuário em 24/09/2026: não vale a pena insistir 3x
+    por execução numa falha já conhecida como permanente - "tentativas"
+    precisa acumular entre chamadas (mesma execução ou execuções
+    diferentes, já que o checkpoint persiste em disco)."""
+    estado = checkpoint.carregar(tmp_path / "checkpoint.json")
+    checkpoint.marcar_falha(estado, "AUTO1", "erro 1", cnpj="123", tipo_value="2")
+    assert estado["falhas"]["AUTO1"]["tentativas"] == 1
+    checkpoint.marcar_falha(estado, "AUTO1", "erro 2", cnpj="123", tipo_value="2")
+    checkpoint.marcar_falha(estado, "AUTO1", "erro 3", cnpj="123", tipo_value="2")
+    assert estado["falhas"]["AUTO1"]["tentativas"] == 3
+
+
+def test_marcar_processado_depois_de_falhar_reseta_tentativas_se_falhar_de_novo(tmp_path):
+    """Se o auto deu certo, marcar_processado() já remove a falha (ver
+    teste de cima na suite) - se ele falhar de novo no futuro, a contagem
+    começa do zero, não continua de onde parou (faz sentido: já provou que
+    não é permanente, então merece o benefício da dúvida de novo)."""
+    estado = checkpoint.carregar(tmp_path / "checkpoint.json")
+    checkpoint.marcar_falha(estado, "AUTO1", "erro", cnpj="123", tipo_value="2")
+    checkpoint.marcar_falha(estado, "AUTO1", "erro", cnpj="123", tipo_value="2")
+    checkpoint.marcar_processado(estado, "AUTO1")  # resolveu
+    checkpoint.marcar_falha(estado, "AUTO1", "erro novo", cnpj="123", tipo_value="2")  # falhou nu novo, do zero
+    assert estado["falhas"]["AUTO1"]["tentativas"] == 1
+
+
+def test_falha_provavelmente_permanente_so_apos_o_limite(tmp_path):
+    estado = checkpoint.carregar(tmp_path / "checkpoint.json")
+    checkpoint.marcar_falha(estado, "AUTO1", "erro", cnpj="123", tipo_value="2")
+    assert not checkpoint.falha_provavelmente_permanente(estado, "AUTO1")
+
+    for _ in range(checkpoint.LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE - 1):
+        checkpoint.marcar_falha(estado, "AUTO1", "erro", cnpj="123", tipo_value="2")
+    assert checkpoint.falha_provavelmente_permanente(estado, "AUTO1")
+
+
+def test_falha_provavelmente_permanente_falso_pra_auto_inexistente(tmp_path):
+    estado = checkpoint.carregar(tmp_path / "checkpoint.json")
+    assert not checkpoint.falha_provavelmente_permanente(estado, "NAO_EXISTE")
+
+
 def test_migracao_de_falha_legada_formato_string_vira_dict(tmp_path):
     """Checkpoints salvos antes de 19/09/2026 guardavam `falhas` como
     {auto: "motivo"} (string simples) - carregar() precisa migrar isso pro
@@ -79,7 +120,7 @@ def test_migracao_de_falha_legada_formato_string_vira_dict(tmp_path):
         encoding="utf-8",
     )
     estado = checkpoint.carregar(caminho)
-    assert estado["falhas"]["Y"] == {"motivo": "motivo antigo em texto puro", "cnpj": None, "tipo_value": None}
+    assert estado["falhas"]["Y"] == {"motivo": "motivo antigo em texto puro", "cnpj": None, "tipo_value": None, "tentativas": 0}
     assert checkpoint.falhas_retentaveis(estado) == []  # sem cnpj/tipo, não é retentável direto
 
 
