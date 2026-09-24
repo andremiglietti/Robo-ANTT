@@ -28,9 +28,9 @@ O projeto é inspirado (benchmarking) num robô já existente em outra empresa d
 
 ## Decisões pendentes / a confirmar
 
-- Permissão de **escrita** (não só leitura) da conta na pasta específica do SharePoint (item 6.3 do checklist).
-- Exigência de aprovação de InfoSec para automação com credencial real (item 6.4).
-- Ponto de contato do TI para suporte contínuo pós-entrega (item 6.5).
+- ~~Permissão de **escrita** (não só leitura) da conta na pasta específica do SharePoint (item 6.3 do checklist).~~ ✅ Confirmado em 24/09/2026 pelo usuário: os itens salvos localmente estão sincronizando no SharePoint.
+- ~~Exigência de aprovação de InfoSec para automação com credencial real (item 6.4).~~ ✅ Confirmado em 24/09/2026: equipe está ciente e confirmou que pode usar dessa forma.
+- ~~Ponto de contato do TI para suporte contínuo pós-entrega (item 6.5).~~ ✅ Confirmado em 24/09/2026: André Miglietti (o usuário deste projeto) é o ponto focal.
 - Volume de CNPJs e de multas/mês (Bloco 5) — não bloqueia o desenvolvimento, só dimensionamento.
 - ~~Bloco 4 (estrutura da base interna)~~ — descartado em 15/09/2026: não existe registro de viagens na empresa, não haverá cruzamento de dados.
 
@@ -383,10 +383,10 @@ C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT\
 - Estruturação do projeto/ambiente Python/Playwright (Dia 1).
 - 6.1 (computador definido), 6.2 (acesso ao OneDrive confirmado).
 - Definição completa da saída (planilha Excel + estrutura de pastas por CNPJ/tipo de multa) — não estava no checklist original, mas fechada em 15/09/2026.
+- **Bloco 6.3–6.5 confirmados em 24/09/2026** — 6.3 (escrita no SharePoint: itens locais confirmados sincronizando), 6.4 (InfoSec: equipe ciente e confirmou o uso), 6.5 (ponto de contato de TI: André Miglietti). Todo o Bloco 6 está fechado agora.
 
 ⬜ Pendente:
 - Bloco 5 (volume de CNPJs/multas por mês) — não bloqueia, e já temos uma estimativa de tempo de execução (ver item 3 da arquitetura: ~2,6 min/CNPJ, ~2,5–3h pra varrer os 61 CNPJs).
-- Bloco 6.3–6.5 (permissão de escrita no SharePoint, aprovação de InfoSec, ponto de contato do TI) — tarefas de negócio, não técnicas.
 - Confirmação de disponibilidade recorrente da pessoa do login manual (Dia 1, item 1.2 parcial) — **ganhou urgência** com o achado de que a sessão dura menos de 40h (e nos testes de hoje, às vezes bem menos que isso).
 
 **O robô está funcionalmente completo de ponta a ponta** (login/sessão → varredura → download → extração → planilha → checkpoint), escrito e validado ao vivo contra o portal real e contra os 5 PDFs de exemplo — corrigindo cerca de 10 bugs reais ao longo do dia que só apareceram testando contra o sistema de verdade. **A saída já está apontada pra pasta real sincronizada com o OneDrive/SharePoint** (ver abaixo). O que falta agora é (a) itens de negócio do Bloco 6, e (b) rodar numa escala maior/real antes da entrega.

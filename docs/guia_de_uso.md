@@ -120,8 +120,7 @@ de cada execução.
 
 ## Em caso de dúvida técnica
 
-*(a definir — ponto de contato de TI/suporte para dúvidas que não sejam
-cobertas por este guia)*
+Ponto de contato: André Miglietti.
 
 ---
 
