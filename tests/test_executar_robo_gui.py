@@ -43,6 +43,12 @@ def _resetar(app, total_workers: int | None = None):
     if hasattr(app, "_frame_exec") and app._frame_exec.winfo_exists():
         app._frame_exec.destroy()
     app._linhas_worker = {}
+    # Estado de reconexão por worker (25/09/2026) também precisa resetar -
+    # senão um teste que marca _execucao_concluida/_workers_parados
+    # "vaza" pro próximo teste, já que `app` é reaproveitado (scope="module").
+    app._reconectando = False
+    app._execucao_concluida = False
+    app._workers_parados = set()
 
     if total_workers is None:
         app._montar_tela_inicial()
@@ -238,6 +244,151 @@ def test_mensagem_erro_nao_derruba_a_tela(app):
     app._tratar_mensagem(("erro", "falha simulada"))
     app.update()
     assert "falha simulada" in app._label_status_geral["text"]
+
+
+# ---------------------------------------------------------------------------
+# Reconexão por worker (25/09/2026, pedido em reunião com o time) - ver
+# docstring do módulo. Não abre navegador/Playwright de verdade nos testes -
+# _ao_clicar_relogar monkeypatcha threading.Thread pra capturar o alvo em
+# vez de rodá-lo (o próprio _reconectar_worker também não é exercido aqui
+# com login real - ele só chama funções já usadas/testadas em outro lugar).
+# ---------------------------------------------------------------------------
+
+
+def test_botao_relogar_comeca_desabilitado(app):
+    _resetar(app, total_workers=2)
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "disabled"
+
+
+def test_mensagem_worker_parou_habilita_so_o_botao_daquele_worker(app):
+    _resetar(app, total_workers=2)
+
+    app._tratar_mensagem(("worker_parou", 0))
+    app.update()
+
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "normal"
+    assert app._linhas_worker[1]["botao_relogar"]["state"] == "disabled"
+    assert 0 in app._workers_parados
+
+
+def test_mensagem_worker_parou_nao_habilita_se_ja_concluido(app):
+    """Depois de "concluído", ninguém mais está fazendo polling - habilitar
+    o botão seria enganoso (clicar não teria efeito real)."""
+    _resetar(app, total_workers=1)
+    app._execucao_concluida = True
+
+    app._tratar_mensagem(("worker_parou", 0))
+    app.update()
+
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "disabled"
+
+
+def test_ao_clicar_relogar_desabilita_todos_os_botoes_e_dispara_thread(app, monkeypatch):
+    """Serializa reconexões (1 login manual por vez, reaproveitando o
+    mesmo botão/evento "Já fiz login" já usado no login inicial)."""
+    _resetar(app, total_workers=2)
+    app._tratar_mensagem(("worker_parou", 0))
+    app.update()
+
+    threads_criadas = []
+
+    class ThreadFalsa:
+        def __init__(self, target, args, daemon):
+            threads_criadas.append((target, args))
+
+        def start(self):
+            pass  # não roda de verdade - testado à parte via _reconectar_worker
+
+    monkeypatch.setattr(executar_robo_gui.threading, "Thread", ThreadFalsa)
+
+    app._ao_clicar_relogar(0, total_workers=2)
+    app.update()
+
+    assert app._reconectando is True
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "disabled"
+    assert app._linhas_worker[1]["botao_relogar"]["state"] == "disabled"
+    assert len(threads_criadas) == 1
+    assert threads_criadas[0][0] == app._reconectar_worker
+    assert threads_criadas[0][1] == (0, 2)
+
+
+def test_ao_clicar_relogar_nao_faz_nada_se_ja_reconectando(app, monkeypatch):
+    _resetar(app, total_workers=2)
+    app._tratar_mensagem(("worker_parou", 0))
+    app._reconectando = True
+    app.update()
+
+    chamou_thread = []
+    monkeypatch.setattr(
+        executar_robo_gui.threading,
+        "Thread",
+        lambda *a, **k: chamou_thread.append(True),
+    )
+
+    app._ao_clicar_relogar(0, total_workers=2)
+
+    assert not chamou_thread
+
+
+def test_ao_clicar_relogar_apos_concluido_mostra_aviso_sem_disparar_thread(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    app._execucao_concluida = True
+
+    avisos = []
+    monkeypatch.setattr(executar_robo_gui.messagebox, "showinfo", lambda *a, **k: avisos.append(a))
+    chamou_thread = []
+    monkeypatch.setattr(
+        executar_robo_gui.threading,
+        "Thread",
+        lambda *a, **k: chamou_thread.append(True),
+    )
+
+    app._ao_clicar_relogar(0, total_workers=1)
+
+    assert avisos
+    assert not chamou_thread
+
+
+def test_mensagem_reconexao_finalizada_libera_flag_e_reabilita_pendentes(app):
+    """2 workers pararam; reconecta o worker 0 - ao terminar, o botão do
+    worker 1 (que continuava parado) volta a ficar disponível."""
+    _resetar(app, total_workers=2)
+    app._tratar_mensagem(("worker_parou", 0))
+    app._tratar_mensagem(("worker_parou", 1))
+    app._reconectando = True
+    for linha in app._linhas_worker.values():
+        linha["botao_relogar"].config(state="disabled")
+    app.update()
+
+    app._tratar_mensagem(("reconexao_finalizada", 0))
+    app.update()
+
+    assert app._reconectando is False
+    assert 0 not in app._workers_parados
+    assert app._linhas_worker[1]["botao_relogar"]["state"] == "normal"
+
+
+def test_mensagem_reconexao_erro_mostra_aviso_sem_travar(app):
+    _resetar(app, total_workers=1)
+
+    app._tratar_mensagem(("reconexao_erro", 0, "falha simulada de login"))
+    app.update()
+
+    assert "Worker 1" in app._label_status_geral["text"]
+    assert "falha simulada de login" in app._label_status_geral["text"]
+
+
+def test_mensagem_concluido_desabilita_botoes_relogar_restantes(app):
+    _resetar(app, total_workers=2)
+    app._tratar_mensagem(("worker_parou", 0))
+    app.update()
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "normal"
+
+    app._tratar_mensagem(("concluido", "C:/fake/Relatorio_Multas.xlsx", "Confirmado: 100% completo.", 10, 1))
+    app.update()
+
+    assert app._execucao_concluida is True
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "disabled"
 
 
 # ---------------------------------------------------------------------------

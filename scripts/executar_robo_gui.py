@@ -5,6 +5,22 @@ retomado em 23/09/2026 (ver CLAUDE.md): substitui o terminal rolando texto
 escolher workers, botão "Iniciar", um botão "Já fiz login" no lugar do
 "aperte ENTER", e uma barra de progresso por worker.
 
+⚠️ Reconexão por worker (25/09/2026, pedido em reunião com o time: "e se a
+sessão de 1 worker cair, dá pra logar de novo só ele, sem reiniciar todos?")
+- cada linha de worker ganha um botão "Relogar", habilitado só quando
+aquele worker específico parou (`[PAROU]` no log) enquanto os outros
+continuam rodando. Clicar dispara um login manual novo SÓ pra esse worker
+(mesmo fluxo de sempre) numa thread própria, e relança o processo dele com
+o MESMO worker_id/total_workers - o checkpoint dele garante que retoma de
+onde parou, sem repetir trabalho. A thread principal (`_orquestrar`, que já
+está rodando enquanto os outros workers trabalham) pega esse processo novo
+sozinha no próximo ciclo do polling - a thread de reconexão só loga e
+relança, nunca tenta fazer polling/consolidar por conta própria (evitaria
+2 threads competindo pra consolidar/concluir ao mesmo tempo). Só funciona
+enquanto a execução principal ainda está rodando (não depois de
+"concluído" - nesse caso ninguém mais está fazendo polling pra pegar o
+processo novo, e a orientação passa a ser rodar o programa de novo).
+
 Reaproveita TODA a lógica de scripts/executar_robo.py sem duplicar nada
 (_iniciar_worker, _status_legivel, _consolidar_planilha_final, LOG_DIR,
 PORTAL_LOGIN_URL, config) - só troca a CAMADA DE INTERAÇÃO: onde a versão
@@ -172,7 +188,14 @@ class AppRobo(tk.Tk):
         self._fila: queue.Queue = queue.Queue()
         self._evento_login: threading.Event | None = None
         self._linhas_worker: dict[int, dict] = {}
-        self._processos: list[subprocess.Popen] = []
+        self._processos: dict[int, subprocess.Popen] = {}
+
+        # Reconexão por worker (ver docstring do módulo) - só estado usado
+        # pela thread principal (Tk, via _tratar_mensagem) - nunca mutado
+        # de outra thread, então não precisa de lock.
+        self._reconectando: bool = False
+        self._execucao_concluida: bool = False
+        self._workers_parados: set[int] = set()
 
         # ⚠️ Achado em 25/09/2026 (pedido do usuário, pensando numa 2ª
         # pessoa usando o robô no computador dela): se a pasta de destino
@@ -350,9 +373,19 @@ class AppRobo(tk.Tk):
             # couber, quebra em 2+ linhas (`wraplength`) em vez de cortar.
             barra = ttk.Progressbar(linha, length=150, maximum=100)
             barra.pack(side="right", padx=(10, 0))
-            label = tk.Label(linha, text=f"Worker {worker_id + 1}: aguardando...", anchor="w", justify="left", wraplength=450)
+            # Achado em reunião com o time, 25/09/2026: aparece habilitado
+            # só quando ESSE worker específico parar (sessão caiu, etc.)
+            # enquanto os outros continuam - ver docstring do módulo.
+            botao_relogar = tk.Button(
+                linha,
+                text="Relogar",
+                state="disabled",
+                command=lambda wid=worker_id: self._ao_clicar_relogar(wid, total_workers),
+            )
+            botao_relogar.pack(side="right", padx=(10, 0))
+            label = tk.Label(linha, text=f"Worker {worker_id + 1}: aguardando...", anchor="w", justify="left", wraplength=380)
             label.pack(side="left", fill="x", expand=True)
-            self._linhas_worker[worker_id] = {"label": label, "barra": barra}
+            self._linhas_worker[worker_id] = {"label": label, "barra": barra, "botao_relogar": botao_relogar}
 
         self._label_resultado_final = tk.Label(
             self._frame_exec, text="", wraplength=500, justify="left", fg="darkgreen"
@@ -374,7 +407,7 @@ class AppRobo(tk.Tk):
                 self._login_worker_gui(worker_id)
                 self._fila.put(("worker_status", worker_id, "login feito - iniciando em segundo plano..."))
                 processo = _iniciar_worker(worker_id, total_workers)
-                self._processos.append(processo)
+                self._processos[worker_id] = processo
 
             self._fila.put(
                 (
@@ -384,12 +417,31 @@ class AppRobo(tk.Tk):
                 )
             )
 
+            # Dedup local (só desta thread) pra não spammar "worker_parou" a
+            # cada ciclo de 5s - some do set assim que o worker volta a
+            # rodar (reconectado), permitindo avisar de novo se parar outra
+            # vez no futuro.
+            workers_parados_avisados: set[int] = set()
             while True:
                 for worker_id in range(total_workers):
                     log_path = LOG_DIR / f"worker_{worker_id}.log"
                     status = _status_legivel(log_path)
                     self._fila.put(("worker_status", worker_id, status))
-                if all(p.poll() is not None for p in self._processos):
+                    processo = self._processos.get(worker_id)
+                    if processo is None:
+                        continue
+                    parou_agora = status.startswith("[PAROU]") and processo.poll() is not None
+                    if parou_agora and worker_id not in workers_parados_avisados:
+                        workers_parados_avisados.add(worker_id)
+                        self._fila.put(("worker_parou", worker_id))
+                    elif not parou_agora:
+                        workers_parados_avisados.discard(worker_id)
+                # Se uma reconexão está em andamento (login + relançamento
+                # de 1 worker específico), espera ela terminar antes de
+                # considerar "tudo pronto" - senão o loop podia concluir
+                # bem no meio de uma reconexão (o processo antigo do worker
+                # já saiu, o novo ainda não existe).
+                if not self._reconectando and all(p.poll() is not None for p in self._processos.values()):
                     break
                 time.sleep(5)
 
@@ -442,6 +494,47 @@ class AppRobo(tk.Tk):
             browser.close()
         self._evento_login = None
 
+    def _ao_clicar_relogar(self, worker_id: int, total_workers: int) -> None:
+        """Clique no botão "Relogar" de UM worker específico (ver
+        docstring do módulo). Roda no thread principal (é um callback de
+        botão) - só prepara o estado e dispara a thread de fundo que faz
+        o login de verdade (bloqueante, não pode rodar aqui)."""
+        if self._execucao_concluida:
+            messagebox.showinfo(
+                "Robô ANTT",
+                "A execução já terminou - pra continuar esse worker, rode o programa de novo "
+                "(ele reaproveita todo o progresso já salvo, não perde nada).",
+            )
+            return
+        if self._reconectando:
+            return  # já tem uma reconexão em andamento - serializa (1 login manual por vez)
+
+        self._reconectando = True
+        for linha in self._linhas_worker.values():
+            linha["botao_relogar"].config(state="disabled")
+        self._linhas_worker[worker_id]["label"].config(text=f"Worker {worker_id + 1}: preparando novo login...")
+
+        thread = threading.Thread(target=self._reconectar_worker, args=(worker_id, total_workers), daemon=True)
+        thread.start()
+
+    def _reconectar_worker(self, worker_id: int, total_workers: int) -> None:
+        """Thread separada da principal (_orquestrar) - login manual novo
+        só pra ESSE worker e relança o processo dele. Não faz polling nem
+        consolidação por conta própria: a thread principal (ainda rodando
+        enquanto os outros workers trabalham) pega o processo novo sozinha
+        no próximo ciclo, evitando 2 threads competindo pra concluir."""
+        try:
+            self._fila.put(("status_geral", f"Relogando o Worker {worker_id + 1} - abrindo o portal..."))
+            self._login_worker_gui(worker_id)
+            processo = _iniciar_worker(worker_id, total_workers)
+            self._processos[worker_id] = processo
+            self._fila.put(("worker_status", worker_id, "login feito - voltando a trabalhar..."))
+            self._fila.put(("status_geral", "Os workers estão trabalhando em segundo plano."))
+        except Exception as e:
+            self._fila.put(("reconexao_erro", worker_id, str(e)))
+        finally:
+            self._fila.put(("reconexao_finalizada", worker_id))
+
     # ------------------------------------------------------------------
     # Thread principal - único lugar que mexe em widgets
     # ------------------------------------------------------------------
@@ -470,6 +563,23 @@ class AppRobo(tk.Tk):
             linha = self._linhas_worker[worker_id]
             linha["label"].config(text=f"Worker {worker_id + 1}: {status}")
             linha["barra"]["value"] = _percentual_de(status)
+        elif tipo == "worker_parou":
+            worker_id = mensagem[1]
+            self._workers_parados.add(worker_id)
+            if not self._execucao_concluida and not self._reconectando:
+                self._linhas_worker[worker_id]["botao_relogar"].config(state="normal")
+        elif tipo == "reconexao_finalizada":
+            worker_id = mensagem[1]
+            self._workers_parados.discard(worker_id)
+            self._reconectando = False
+            if not self._execucao_concluida:
+                for wid in self._workers_parados:
+                    self._linhas_worker[wid]["botao_relogar"].config(state="normal")
+        elif tipo == "reconexao_erro":
+            worker_id, texto = mensagem[1], mensagem[2]
+            self._label_status_geral.config(
+                text=f"[ATENÇÃO] Não foi possível relogar o Worker {worker_id + 1}: {texto}", fg="red"
+            )
         elif tipo == "concluido":
             caminho_planilha, resumo_completude, total_verificadas, novas = (
                 mensagem[1],
@@ -477,6 +587,9 @@ class AppRobo(tk.Tk):
                 mensagem[3],
                 mensagem[4],
             )
+            self._execucao_concluida = True
+            for linha in self._linhas_worker.values():
+                linha["botao_relogar"].config(state="disabled")
             self._label_status_geral.config(text="CONCLUÍDO")
             self._label_resultado_final.config(
                 text=(
@@ -488,6 +601,9 @@ class AppRobo(tk.Tk):
                 )
             )
         elif tipo == "erro":
+            self._execucao_concluida = True
+            for linha in self._linhas_worker.values():
+                linha["botao_relogar"].config(state="disabled")
             self._label_status_geral.config(text=f"[ATENÇÃO] Ocorreu um erro: {mensagem[1]}", fg="red")
 
 
