@@ -110,6 +110,17 @@ def calcular_completude(session_file: Path | None = None) -> dict:
     # deixa o veredito final dizer "100%" (ver cem_por_cento abaixo), já que
     # os dados dele (completude E falhas) ficam desconhecidos, não zerados.
     checkpoints_corrompidos: list[str] = []
+    # ⚠️ Achado em 25/09/2026 (revisão crítica, ligando o contador de
+    # `tentativas` de 24/09/2026 a este relatório): "N falhas pendentes"
+    # sozinho não diz se são um problema novo (vale a pena rodar de novo -
+    # boa chance de resolver) ou o cluster já bem documentado de falhas
+    # permanentes do servidor (rodar de novo não vai resolver a maioria,
+    # por mais vezes que tentar - ver checkpoint.falha_provavelmente_
+    # permanente()). Sem essa distinção, o relatório (e a mensagem da GUI,
+    # ver executar_robo_gui.py) davam a entender que TODA falha pendente
+    # ainda tem chance real de se resolver sozinha.
+    falhas_novas = 0
+    falhas_permanentes = 0
     caminhos_checkpoint = _todos_os_checkpoints()
     for caminho in caminhos_checkpoint:
         try:
@@ -121,6 +132,11 @@ def calcular_completude(session_file: Path | None = None) -> dict:
         falhas = estado.get("falhas", {})
         if falhas:
             falhas_por_checkpoint[caminho.name] = falhas
+            for auto in falhas:
+                if checkpoint_mod.falha_provavelmente_permanente(estado, auto):
+                    falhas_permanentes += 1
+                else:
+                    falhas_novas += 1
 
     confirmadas = esperadas & completas
     faltando = esperadas - completas
@@ -146,6 +162,8 @@ def calcular_completude(session_file: Path | None = None) -> dict:
         "paginacao_completa": paginacao_completa,
         "faltando_por_cnpj": faltando_por_cnpj,
         "total_falhas": total_falhas,
+        "falhas_novas": falhas_novas,
+        "falhas_permanentes": falhas_permanentes,
         "falhas_por_checkpoint": {nome: len(f) for nome, f in falhas_por_checkpoint.items()},
         "cem_por_cento": paginacao_completa and not total_falhas and not checkpoints_corrompidos,
     }
@@ -194,9 +212,22 @@ def _imprimir_relatorio(resultado: dict) -> None:
         )
         for nome_checkpoint, n_falhas in sorted(resultado["falhas_por_checkpoint"].items()):
             print(f"  - {nome_checkpoint}: {n_falhas} falha(s)")
+        # ⚠️ Achado em 25/09/2026: distingue falhas com chance real de
+        # resolver sozinhas (ainda "novas") das já confirmadas como
+        # permanentes (ver checkpoint.falha_provavelmente_permanente()) -
+        # sem isso, a frase seguinte ("rode de novo pra retentar") dava a
+        # entender que rodar de novo resolveria TODAS, quando a maioria do
+        # cluster conhecido não resolve por mais vezes que se tente.
+        print(
+            f"\nDessas, {resultado['falhas_novas']} ainda são recentes (rodar de novo tem chance real de "
+            f"resolver) e {resultado['falhas_permanentes']} já foram confirmadas como problema permanente do "
+            "servidor da ANTT em execuções anteriores (rodar de novo não deve mudar o resultado, mas continua "
+            "tentando 1x por execução por precaução - ver Falhas_Pendentes_Revisao_Manual.xlsx pra revisão "
+            "manual dessas)."
+        )
         print(
             "\nIsso significa que, mesmo com a paginação 100% completa, a planilha final pode não ter 100% dos "
-            "autos reais até essas falhas serem resolvidas. Rode os workers/execução de novo pra retentar "
+            "autos reais até as falhas recentes serem resolvidas. Rode os workers/execução de novo pra retentar "
             "(falhas pendentes são tentadas de novo automaticamente, sem precisar de nenhuma ação manual além "
             "de rodar)."
         )

@@ -110,6 +110,16 @@ def test_falha_provavelmente_permanente_falso_pra_auto_inexistente(tmp_path):
     assert not checkpoint.falha_provavelmente_permanente(estado, "NAO_EXISTE")
 
 
+def test_falha_provavelmente_permanente_tolera_formato_legado_string(tmp_path):
+    """Achado em 25/09/2026: relatorio_completude.py lê o JSON bruto de
+    vários checkpoints direto, sem passar pela migração de carregar() -
+    uma falha em formato antigo (string simples, não dict) não pode
+    quebrar essa checagem com AttributeError."""
+    estado = checkpoint.carregar(tmp_path / "checkpoint.json")
+    estado["falhas"]["AUTO_LEGADO"] = "motivo antigo em texto puro"  # formato pré-19/09/2026, sem migração
+    assert not checkpoint.falha_provavelmente_permanente(estado, "AUTO_LEGADO")
+
+
 def test_migracao_de_falha_legada_formato_string_vira_dict(tmp_path):
     """Checkpoints salvos antes de 19/09/2026 guardavam `falhas` como
     {auto: "motivo"} (string simples) - carregar() precisa migrar isso pro

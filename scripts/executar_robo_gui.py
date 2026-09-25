@@ -68,12 +68,30 @@ def _resumo_completude_legivel(resultado: dict) -> str:
     if resultado["cem_por_cento"]:
         return "Confirmado: a varredura da empresa inteira está 100% completa - nenhuma multa real ficou de fora."
 
+    # ⚠️ Achado na revisão crítica de 25/09/2026, ligando o contador de
+    # `tentativas` (24/09/2026) a esta mensagem: nem toda falha pendente
+    # tem a mesma chance de se resolver rodando de novo - um cluster já
+    # bem documentado (ver checkpoint.falha_provavelmente_permanente()) é
+    # confirmadamente um problema permanente do servidor da ANTT, não algo
+    # que "rodar de novo" vai eventualmente resolver. Sem separar isso, a
+    # frase de baixo ("é só rodar de novo...") prometia um 100% que talvez
+    # nunca chegue pra essas - `.get(..., total_falhas)` mantém compatível
+    # com um `resultado` sem essas 2 chaves (ex.: testes antigos), tratando
+    # tudo como "novo" nesse caso, igual o comportamento de antes.
+    falhas_novas = resultado.get("falhas_novas", resultado.get("total_falhas", 0))
+    falhas_permanentes = resultado.get("falhas_permanentes", 0)
+
     partes = []
     if not resultado["paginacao_completa"]:
         n = sum(len(v) for v in resultado["faltando_por_cnpj"].values())
         partes.append(f"ainda falta verificar {n} combinação(ões) de CNPJ/tipo de multa")
-    if resultado["total_falhas"]:
-        partes.append(f"{resultado['total_falhas']} documento(s) específico(s) ainda não baixaram com sucesso")
+    if falhas_novas:
+        partes.append(f"{falhas_novas} documento(s) específico(s) ainda não baixaram com sucesso")
+    if falhas_permanentes:
+        partes.append(
+            f"{falhas_permanentes} documento(s) já identificados como problema permanente do servidor da "
+            "ANTT (não é um problema deste programa - já está sendo tratado à parte)"
+        )
     # ⚠️ Achado na revisão crítica de 24/09/2026: se "cem_por_cento" for
     # False só por causa de checkpoint(s) corrompido(s) (paginação completa
     # e zero falhas, mas 1+ checkpoint ilegível), as 2 checagens acima não
@@ -84,6 +102,19 @@ def _resumo_completude_legivel(resultado: dict) -> str:
         n = len(resultado["checkpoints_corrompidos"])
         partes.append(f"{n} arquivo(s) de progresso interno ficaram ilegíveis e precisam de atenção técnica")
     detalhe = " e ".join(partes) if partes else "não foi possível confirmar todos os detalhes"
+
+    # Se a ÚNICA pendência for falha(s) já permanente(s) (paginação ok, sem
+    # checkpoint corrompido, nada novo pendente), rodar de novo não deve
+    # trazer nada de diferente - a mensagem não pode prometer isso.
+    so_falhas_permanentes = (
+        resultado["paginacao_completa"]
+        and not resultado.get("checkpoints_corrompidos")
+        and not falhas_novas
+        and falhas_permanentes
+    )
+    if so_falhas_permanentes:
+        return f"Praticamente completo: {detalhe}. Isso é esperado - não precisa rodar de novo por causa disso."
+
     return f"Ainda não está 100% completo: {detalhe}. É só rodar este programa de novo que ele tenta terminar sozinho."
 
 

@@ -168,9 +168,21 @@ def falha_provavelmente_permanente(estado: dict, auto_infracao: str) -> bool:
     rodadas extras de retentativa dentro da mesma execução que uma falha
     genuinamente nova recebe (ver orquestrador.rodar(), pedido do usuário
     em 24/09/2026: "não acho que vale a pena tentar retentativas de baixar
-    alguns arquivos que já sabemos que tem falha")."""
+    alguns arquivos que já sabemos que tem falha").
+
+    ⚠️ Achado em 25/09/2026 (preparando o uso desta função em
+    relatorio_completude.py, que lê o JSON bruto de vários checkpoints
+    direto, sem passar pela migração de carregar()): uma falha legada
+    (formato antigo, `estado["falhas"][auto]` era uma STRING simples, não
+    um dict) faria `info.get(...)` quebrar com `AttributeError`. Blindado
+    aqui em vez de exigir que todo chamador já tenha migrado o estado -
+    falha em formato desconhecido/legado é tratada como "ainda não
+    confirmada permanente" (resposta segura: nunca superestima
+    permanência por engano)."""
     info = estado["falhas"].get(auto_infracao)
-    return bool(info) and info.get("tentativas", 0) >= LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE
+    if not isinstance(info, dict):
+        return False
+    return info.get("tentativas", 0) >= LIMITE_TENTATIVAS_PROVAVEL_PERMANENTE
 
 
 def marcar_varredura_completa(estado: dict, cnpj: str, tipo_value: str) -> None:

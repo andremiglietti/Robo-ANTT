@@ -142,6 +142,43 @@ def test_resumo_completude_faltando_paginacao_e_falhas():
     assert "script" not in resumo.lower()
 
 
+def test_resumo_completude_so_falhas_permanentes_nao_promete_rodar_de_novo():
+    """Achado na revisão crítica de 25/09/2026: se a única pendência for
+    falha(s) já confirmada(s) como problema permanente do servidor, a
+    mensagem não pode sugerir que rodar de novo vai chegar a 100% - isso
+    pode nunca acontecer pra essas."""
+    resultado = {
+        "cem_por_cento": False,
+        "paginacao_completa": True,
+        "faltando_por_cnpj": {},
+        "total_falhas": 176,
+        "falhas_novas": 0,
+        "falhas_permanentes": 176,
+    }
+    resumo = _resumo_completude_legivel(resultado)
+    assert "não precisa rodar de novo" in resumo
+    assert "176" in resumo
+    assert "É só rodar este programa de novo que ele tenta terminar" not in resumo
+
+
+def test_resumo_completude_falhas_mistas_ainda_sugere_rodar_de_novo():
+    """Se sobrar pelo menos 1 falha nova (não confirmada permanente ainda),
+    a sugestão de rodar de novo continua fazendo sentido - só não pra
+    100% completo (as permanentes continuam lá)."""
+    resultado = {
+        "cem_por_cento": False,
+        "paginacao_completa": True,
+        "faltando_por_cnpj": {},
+        "total_falhas": 180,
+        "falhas_novas": 4,
+        "falhas_permanentes": 176,
+    }
+    resumo = _resumo_completude_legivel(resultado)
+    assert "É só rodar este programa de novo que ele tenta terminar" in resumo
+    assert "4 documento" in resumo
+    assert "176 documento" in resumo
+
+
 def test_resumo_completude_so_checkpoint_corrompido_nao_gera_frase_quebrada():
     """Achado na revisão crítica de 24/09/2026: com paginação completa e 0
     falhas, mas 1+ checkpoint corrompido, "cem_por_cento" é False sem que

@@ -57,16 +57,28 @@ em quando só para conferir.
 
 ### 5. Quando terminar
 
-A tela mostra **"CONCLUÍDO"**, o caminho da planilha final, e uma frase
-dizendo se a varredura da empresa inteira já está 100% completa ou se
-ainda falta alguma coisa (nesse caso, é só rodar o programa de novo mais
-tarde).
+A tela mostra **"CONCLUÍDO"**, o caminho da planilha final, quantas multas
+foram verificadas no total e quantas são novas nesta execução, e uma
+frase dizendo se a varredura da empresa inteira já está 100% completa ou
+se ainda falta alguma coisa.
 
 A planilha final fica em:
 
 ```
 OneDrive - Yara International ASA\Dados ANTT\Relatorio_Multas.xlsx
 ```
+
+**Importante sobre "100% completo":** normalmente, quando a tela diz que
+ainda falta alguma coisa, é só rodar o programa de novo que ele resolve
+sozinho. Mas existe um grupo pequeno e já conhecido de documentos (por
+volta de 170) que têm um problema permanente no servidor da própria
+ANTT — não é um problema deste programa, e rodar de novo não vai
+resolver esses específicos, por mais vezes que se tente. Quando a tela
+disser algo como "não precisa rodar de novo por causa disso", é
+exatamente esse caso — **não indica erro nenhum**, é esperado. A lista
+completa desses documentos fica em `Falhas_Pendentes_Revisao_Manual.xlsx`
+(ao lado da planilha final), já entregue pra revisão manual/contato com a
+ANTT se algum dia for necessário.
 
 ## Se algo parar no meio (acontece, é normal)
 
@@ -124,6 +136,7 @@ Ponto de contato: André Miglietti.
 
 ---
 
-*Guia referente à interface gráfica (IHM) validada em 23/09/2026. Se a
+*Guia referente à interface gráfica (IHM) validada em 23/09/2026, com
+ajustes de texto/mensagens revisados pela última vez em 25/09/2026. Se a
 aparência da tela mudar no futuro, os passos gerais devem continuar os
 mesmos.*
