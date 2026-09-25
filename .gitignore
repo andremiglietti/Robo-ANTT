@@ -24,3 +24,8 @@ data/logs/
 # Prints e HTML capturado das telas do portal — contêm CPF/nome real do representante legal
 prints/
 codigos_site/
+
+# Configuração local por máquina/pessoa (25/09/2026) — pasta de destino
+# escolhida manualmente por quem usa o robô; específica de cada
+# instalação, nunca do projeto
+data/config_local.json

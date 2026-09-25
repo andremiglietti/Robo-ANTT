@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -7,6 +8,47 @@ SESSION_FILE = BASE_DIR / "data" / "sessao" / "sessao_antt.json"
 # ler, e escrever nele com frequência (a cada CNPJ) numa pasta do OneDrive
 # geraria sincronização o tempo todo à toa.
 OUTPUT_DIR = BASE_DIR / "data" / "output"
+
+# Configuração local por máquina/pessoa (25/09/2026, pedido do usuário -
+# "essa possibilidade deve ser algo fácil, a pessoa deverá conseguir
+# selecionar a pasta"): guarda a pasta de destino escolhida manualmente
+# via a GUI (ver executar_robo_gui.py), pra não perguntar de novo nas
+# próximas execuções desta máquina. Nunca versionado - é específico de
+# cada instalação, não do projeto (ver .gitignore).
+CONFIG_LOCAL_PATH = BASE_DIR / "data" / "config_local.json"
+
+
+def _carregar_sharepoint_dir_configurado() -> Path | None:
+    """Lê a pasta de destino escolhida manualmente nesta máquina, se
+    alguma vez foi escolhida - None se ainda não (1ª execução, ou o
+    palpite padrão abaixo já bateu certo e ninguém precisou escolher)."""
+    if not CONFIG_LOCAL_PATH.exists():
+        return None
+    try:
+        dado = json.loads(CONFIG_LOCAL_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    caminho = dado.get("sharepoint_dir")
+    return Path(caminho) if caminho else None
+
+
+def salvar_sharepoint_dir(caminho: Path) -> None:
+    """Grava a escolha manual da pasta de destino - chamado pela GUI
+    depois da pessoa escolher pelo seletor de pastas (ver
+    executar_robo_gui.py). Pra "esquecer" a escolha e voltar a perguntar,
+    basta apagar `CONFIG_LOCAL_PATH` manualmente.
+
+    ⚠️ Só toma efeito numa execução FUTURA - vários módulos do projeto
+    importam `DOWNLOAD_DIR`/`PLANILHA_PATH` como valor fixo no momento da
+    importação (`from robo_antt.config import PLANILHA_PATH`), não como
+    referência viva ao módulo `config` - mudar só o valor em memória aqui
+    não atualizaria o que esses módulos já capturaram. Por isso a GUI
+    reinicia o programa inteiro depois de chamar esta função, garantindo
+    que todo módulo (inclusive os workers, cada um seu próprio processo)
+    reimporte `config.py` do zero, já com a pasta nova."""
+    CONFIG_LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_LOCAL_PATH.write_text(json.dumps({"sharepoint_dir": str(caminho)}, ensure_ascii=False), encoding="utf-8")
+
 
 # Pasta sincronizada com o OneDrive/SharePoint - aqui vai o que É entregável:
 # os PDFs baixados (organizados por CNPJ/tipo de multa) e a planilha final.
@@ -19,12 +61,16 @@ OUTPUT_DIR = BASE_DIR / "data" / "output"
 # `Path.home()`, que resolve o prefixo do usuário sozinho - o NOME da
 # pasta sob o OneDrive é o mesmo pra qualquer pessoa com acesso à mesma
 # biblioteca do SharePoint, só o `C:\Users\<usuário>\` muda de máquina pra
-# máquina. Se essa pasta não existir na hora de rodar (ex.: sincronização
-# ainda não configurada, ou nome diferente por algum motivo), o robô vai
-# falhar de forma clara ao tentar gravar nela - ainda não temos um fluxo
-# de "perguntar o caminho manualmente na 1ª execução" (ver CLAUDE.md,
-# ideias pra IHM).
-SHAREPOINT_DIR = Path.home() / "OneDrive - Yara International ASA" / "Dados ANTT"
+# máquina.
+#
+# ✅ Resolvido em 25/09/2026 (pedido do usuário, pensando numa 2ª pessoa
+# usando o robô no computador dela): esse caminho calculado é só um
+# PALPITE inicial agora - se ele não existir, a GUI pergunta a pasta
+# certa por um seletor (ver executar_robo_gui.py) e salva a escolha via
+# `salvar_sharepoint_dir()` acima, que é verificada aqui ANTES do palpite.
+# Pra quem já tem a estrutura padrão (o palpite bate), nada muda - nunca
+# precisa escolher nada.
+SHAREPOINT_DIR = _carregar_sharepoint_dir_configurado() or (Path.home() / "OneDrive - Yara International ASA" / "Dados ANTT")
 DOWNLOAD_DIR = SHAREPOINT_DIR / "Autos"
 PLANILHA_PATH = SHAREPOINT_DIR / "Relatorio_Multas.xlsx"
 

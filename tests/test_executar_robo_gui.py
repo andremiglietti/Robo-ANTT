@@ -21,7 +21,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from executar_robo_gui import AppRobo, _percentual_de, _resumo_completude_legivel  # noqa: E402
+import executar_robo_gui  # noqa: E402
+from executar_robo_gui import AppRobo, _pasta_e_gravavel, _percentual_de, _resumo_completude_legivel  # noqa: E402
+from robo_antt import config  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -216,3 +218,89 @@ def test_mensagem_erro_nao_derruba_a_tela(app):
     app._tratar_mensagem(("erro", "falha simulada"))
     app.update()
     assert "falha simulada" in app._label_status_geral["text"]
+
+
+# ---------------------------------------------------------------------------
+# Pasta de destino configurável (25/09/2026, ver CLAUDE.md e config.py) -
+# tela nova que aparece só quando config.SHAREPOINT_DIR não existe nesta
+# máquina, perguntando onde salvar antes de seguir pra tela normal.
+# ---------------------------------------------------------------------------
+
+
+def _resetar_para_escolher_pasta(app):
+    for nome in ("_frame_inicial", "_frame_exec", "_frame_pasta"):
+        frame = getattr(app, nome, None)
+        if frame is not None and frame.winfo_exists():
+            frame.destroy()
+    app._montar_tela_escolher_pasta()
+    app.update()
+
+
+def test_pasta_e_gravavel_aceita_pasta_valida(tmp_path):
+    assert _pasta_e_gravavel(tmp_path / "subpasta_nova")
+
+
+def test_pasta_e_gravavel_rejeita_quando_nao_consegue_escrever(tmp_path, monkeypatch):
+    """Simula uma falha de gravação (ex.: sem permissão) sem depender de
+    ACLs reais do SO, que variam de máquina pra máquina."""
+
+    def _write_text_que_falha(self, *args, **kwargs):
+        raise OSError("simulado: sem permissão")
+
+    monkeypatch.setattr(Path, "write_text", _write_text_que_falha)
+    assert not _pasta_e_gravavel(tmp_path / "sem_permissao")
+
+
+def test_tela_escolher_pasta_mostra_o_botao(app):
+    _resetar_para_escolher_pasta(app)
+    assert app._frame_pasta.winfo_exists()
+
+
+def test_ao_clicar_escolher_pasta_cancelado_nao_salva_nem_reinicia(app, monkeypatch):
+    """filedialog.askdirectory() devolve "" quando a pessoa cancela o
+    seletor - nada deve acontecer, a tela continua a mesma."""
+    _resetar_para_escolher_pasta(app)
+
+    monkeypatch.setattr(executar_robo_gui.filedialog, "askdirectory", lambda **kwargs: "")
+    chamou_reiniciar = []
+    monkeypatch.setattr(executar_robo_gui, "_reiniciar_programa", lambda: chamou_reiniciar.append(True))
+
+    app._ao_clicar_escolher_pasta()
+
+    assert not chamou_reiniciar
+
+
+def test_ao_clicar_escolher_pasta_nao_gravavel_mostra_erro_sem_reiniciar(app, monkeypatch):
+    _resetar_para_escolher_pasta(app)
+
+    monkeypatch.setattr(executar_robo_gui.filedialog, "askdirectory", lambda **kwargs: "Z:\\pasta\\impossivel")
+    monkeypatch.setattr(executar_robo_gui, "_pasta_e_gravavel", lambda pasta: False)
+    chamou_reiniciar = []
+    monkeypatch.setattr(executar_robo_gui, "_reiniciar_programa", lambda: chamou_reiniciar.append(True))
+
+    app._ao_clicar_escolher_pasta()
+    app.update()
+
+    assert not chamou_reiniciar
+    assert "Não foi possível" in app._label_erro_pasta["text"]
+
+
+def test_ao_clicar_escolher_pasta_valida_salva_e_reinicia(app, monkeypatch, tmp_path):
+    """Fluxo feliz de ponta a ponta: escolhe uma pasta válida, confirma
+    que a escolha É GRAVADA DE VERDADE no arquivo de configuração local
+    (não só que as funções foram chamadas), e que o programa tenta
+    reiniciar em seguida."""
+    _resetar_para_escolher_pasta(app)
+
+    pasta_escolhida = tmp_path / "Pasta Escolhida Pela Pessoa"
+    monkeypatch.setattr(config, "CONFIG_LOCAL_PATH", tmp_path / "config_local.json")
+    monkeypatch.setattr(executar_robo_gui.filedialog, "askdirectory", lambda **kwargs: str(pasta_escolhida))
+    monkeypatch.setattr(executar_robo_gui.messagebox, "showinfo", lambda *a, **k: None)  # não abre diálogo real
+    chamou_reiniciar = []
+    monkeypatch.setattr(executar_robo_gui, "_reiniciar_programa", lambda: chamou_reiniciar.append(True))
+
+    app._ao_clicar_escolher_pasta()
+
+    assert chamou_reiniciar == [True]
+    assert config._carregar_sharepoint_dir_configurado() == pasta_escolhida
+    assert pasta_escolhida.exists()  # a pasta em si também foi criada (_pasta_e_gravavel)

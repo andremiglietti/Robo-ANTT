@@ -24,6 +24,7 @@ thread diretamente).
 USO:
     python scripts/executar_robo_gui.py
 """
+import os
 import queue
 import re
 import subprocess
@@ -32,7 +33,7 @@ import threading
 import time
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from playwright.sync_api import sync_playwright
 
@@ -127,6 +128,38 @@ def _percentual_de(status_texto: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+# ---------------------------------------------------------------------------
+# Pasta de destino configurável (25/09/2026, pedido do usuário: "a pessoa
+# deverá conseguir selecionar a pasta") - ver config.py, salvar_sharepoint_dir()
+# ---------------------------------------------------------------------------
+
+
+def _pasta_e_gravavel(pasta: Path) -> bool:
+    """Confirma que dá pra criar/gravar na pasta escolhida antes de aceitar
+    a escolha - cria a pasta se ainda não existir (pasta vazia/nova é um
+    caso válido, ver conversa com o usuário: o robô cria "Autos/" e a
+    planilha sozinho na 1ª vez que precisar)."""
+    try:
+        pasta.mkdir(parents=True, exist_ok=True)
+        teste = pasta / ".teste_gravacao_robo_antt"
+        teste.write_text("teste", encoding="utf-8")
+        teste.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _reiniciar_programa() -> None:
+    """Relança o próprio programa como processo novo, no lugar do atual -
+    necessário depois de escolher uma pasta nova (ver config.
+    salvar_sharepoint_dir(): vários módulos importam DOWNLOAD_DIR/
+    PLANILHA_PATH como valor fixo na importação, não como referência viva
+    ao módulo config - só uma reimportação do zero garante que TODO
+    módulo, inclusive os workers (cada um seu próprio processo Python),
+    veja a pasta nova de forma consistente."""
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
 class AppRobo(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -140,8 +173,82 @@ class AppRobo(tk.Tk):
         self._linhas_worker: dict[int, dict] = {}
         self._processos: list[subprocess.Popen] = []
 
-        self._montar_tela_inicial()
+        # ⚠️ Achado em 25/09/2026 (pedido do usuário, pensando numa 2ª
+        # pessoa usando o robô no computador dela): se a pasta de destino
+        # (config.SHAREPOINT_DIR) não existir, não dá pra simplesmente
+        # seguir - o robô ia criar a pasta ERRADA sem avisar ninguém (só
+        # com o palpite padrão, calculado pro computador de UMA pessoa
+        # específica). Pergunta a pasta certa ANTES de mostrar a tela
+        # normal, só quando necessário - quem já tem a estrutura padrão
+        # nunca vê essa tela.
+        if not config.SHAREPOINT_DIR.exists():
+            self._montar_tela_escolher_pasta()
+        else:
+            self._montar_tela_inicial()
         self.after(150, self._processar_fila)
+
+    # ------------------------------------------------------------------
+    # Tela de 1ª execução numa máquina nova: escolher onde salvar
+    # ------------------------------------------------------------------
+    def _montar_tela_escolher_pasta(self) -> None:
+        self._frame_pasta = tk.Frame(self, padx=20, pady=20)
+        self._frame_pasta.pack(fill="both", expand=True)
+
+        tk.Label(
+            self._frame_pasta,
+            text="Onde salvar os resultados?",
+            font=("Segoe UI", 12, "bold"),
+            wraplength=550,
+            justify="left",
+        ).pack(anchor="w")
+
+        tk.Label(
+            self._frame_pasta,
+            text=(
+                f"Não encontramos a pasta esperada neste computador:\n{config.SHAREPOINT_DIR}\n\n"
+                "Escolha a pasta onde o robô deve salvar a planilha final e os PDFs das multas - "
+                "normalmente uma pasta dentro do seu OneDrive, sincronizada com a biblioteca do "
+                "SharePoint da equipe. Pode ser uma pasta vazia - o robô organiza tudo sozinho."
+            ),
+            wraplength=550,
+            justify="left",
+        ).pack(anchor="w", pady=(10, 20))
+
+        tk.Button(
+            self._frame_pasta,
+            text="Escolher pasta...",
+            font=("Segoe UI", 10, "bold"),
+            command=self._ao_clicar_escolher_pasta,
+        ).pack(anchor="w")
+
+        self._label_erro_pasta = tk.Label(self._frame_pasta, text="", fg="red", wraplength=550, justify="left")
+        self._label_erro_pasta.pack(anchor="w", pady=(10, 0))
+
+    def _ao_clicar_escolher_pasta(self) -> None:
+        escolhida = filedialog.askdirectory(title="Escolha a pasta onde salvar os resultados do robô")
+        if not escolhida:
+            return  # cancelou o seletor - fica na mesma tela, pode tentar de novo
+
+        pasta = Path(escolhida)
+        if not _pasta_e_gravavel(pasta):
+            self._label_erro_pasta.config(
+                text="Não foi possível gravar nessa pasta - escolha outra ou confirme suas permissões."
+            )
+            return
+
+        aviso = ""
+        if "onedrive" not in str(pasta).lower():
+            aviso = (
+                "\n\nAviso: essa pasta não parece estar dentro do OneDrive - confirme que ela "
+                "sincroniza com o SharePoint da equipe, senão os arquivos ficam só neste computador."
+            )
+
+        config.salvar_sharepoint_dir(pasta)
+        messagebox.showinfo(
+            "Robô ANTT",
+            f"Pasta salva:\n{pasta}{aviso}\n\nO programa vai reiniciar pra usar essa pasta.",
+        )
+        _reiniciar_programa()
 
     # ------------------------------------------------------------------
     # Tela inicial: só pergunta quantos workers
