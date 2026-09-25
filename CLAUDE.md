@@ -421,8 +421,11 @@ C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT\
 
 ✅ **Bloco 5 (volume) preenchido em 24/09/2026 com o número real e final, não mais uma estimativa** — depois de várias varreduras completas confirmadas (marco de 18/09/2026 + catch-ups seguintes), a empresa tem **61 CNPJs** (matriz + filiais) e, na última contagem confirmada (25/09/2026 de manhã), **4.195 autos de infração distintos** registrados na planilha final, cobrindo processos de 2014 a 2026. Tempo de uma varredura completa do zero variou muito conforme volume/instabilidade do portal (de ~2,5h num teste inicial pequeno a mais de 14h numa execução real sequencial) - não há um número único confiável de "tempo por varredura", mas a arquitetura de múltiplos workers + retentativa automática cobre isso sem precisar de um valor fixo.
 
-⬜ Pendente:
-- Confirmação de disponibilidade recorrente da pessoa do login manual (Dia 1, item 1.2 parcial) — **ganhou urgência** com o achado de que a sessão dura menos de 40h (e nos testes de hoje, às vezes bem menos que isso).
+✅ **Disponibilidade recorrente da pessoa do login manual confirmada em 25/09/2026** — equipe ciente da imprevisibilidade da duração da sessão (pode durar só ~40min) e concordou que não será um problema operacional.
+
+✅ **Riscos nomeados escalados formalmente pra empresa em 25/09/2026** — os ~178 documentos com falha permanente no servidor (`Falhas_Pendentes_Revisao_Manual.xlsx`) e os 4 registros de dívida ativa sem PDF correspondente na tela de download (ver item 3 da arquitetura, achado de 22/09/2026) já foram comunicados.
+
+⬜ Pendente: nenhum item de negócio conhecido no momento.
 
 **O robô está funcionalmente completo de ponta a ponta** (login/sessão → varredura → download → extração → planilha → checkpoint), escrito e validado ao vivo contra o portal real e contra os 5 PDFs de exemplo — corrigindo cerca de 10 bugs reais ao longo do dia que só apareceram testando contra o sistema de verdade. **A saída já está apontada pra pasta real sincronizada com o OneDrive/SharePoint** (ver abaixo). O que falta agora é (a) itens de negócio do Bloco 6, e (b) rodar numa escala maior/real antes da entrega.
 
