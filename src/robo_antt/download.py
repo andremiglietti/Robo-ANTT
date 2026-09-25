@@ -10,6 +10,7 @@ from pathlib import Path
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
+from robo_antt.cadastro import nome_pasta_cnpj
 from robo_antt.config import DOWNLOAD_DIR, SEL, TENTATIVAS_LOCALIZAR_LINHA, TIMEOUT_DOWNLOAD_MS, TIMEOUT_LOCALIZAR_LINHA_MS
 from robo_antt.extracao import extrair_texto_pagina1, identificar_tipo_multa
 from robo_antt.io_seguro import substituir_com_retentativa
@@ -117,18 +118,31 @@ def already_downloaded(auto_infracao: str, cnpj: str) -> Path | None:
     o tipo só é conhecido depois de abrir o PDF, ver identificar_tipo_multa).
     Controle de duplicidade simples baseado no nome do arquivo (ver CLAUDE.md,
     item 4 da arquitetura: o PDF já baixa com o nome do número do auto).
+
+    ⚠️ Checa 2 nomes de pasta possíveis (25/09/2026, ver cadastro.py): o
+    nome atual, com apelido (`{cnpj} - {apelido}`, se conhecido) E o nome
+    antigo/legado (só o CNPJ puro) - garante que autos baixados ANTES da
+    migração pra pastas com apelido (ver scripts/migrar_pastas_apelido.py)
+    continuem sendo encontrados normalmente, mesmo que a migração não
+    tenha rodado ainda pra algum CNPJ específico por qualquer motivo.
     """
-    pasta_cnpj = DOWNLOAD_DIR / cnpj
-    if not pasta_cnpj.exists():
-        return None
-    encontrados = list(pasta_cnpj.glob(f"*/{auto_infracao}.pdf"))
-    return encontrados[0] if encontrados else None
+    pasta_com_apelido = DOWNLOAD_DIR / nome_pasta_cnpj(cnpj)
+    pasta_legada = DOWNLOAD_DIR / cnpj
+    candidatas = [pasta_com_apelido] if pasta_com_apelido == pasta_legada else [pasta_com_apelido, pasta_legada]
+    for pasta_cnpj in candidatas:
+        if not pasta_cnpj.exists():
+            continue
+        encontrados = list(pasta_cnpj.glob(f"*/{auto_infracao}.pdf"))
+        if encontrados:
+            return encontrados[0]
+    return None
 
 
 def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     """Baixa o PDF de um auto (clicando na lupa da linha correspondente, que
     precisa estar na página atual) e salva em
-    data/downloads/{cnpj}/{tipo_multa}/{auto_infracao}.pdf.
+    Autos/{cnpj} - {apelido}/{tipo_multa}/{auto_infracao}.pdf (ou sem o
+    " - {apelido}" se o CNPJ não tiver apelido cadastrado - ver cadastro.py).
 
     O "tipo_multa" da pasta vem do cabeçalho da própria página 1 do PDF (mais
     granular que o filtro de busca "Tipo de Fiscalização" - ver CLAUDE.md,
@@ -210,7 +224,11 @@ def baixar_pdf(page: Page, auto_infracao: str, cnpj: str) -> Path:
     texto_pagina1 = extrair_texto_pagina1(destino_tmp)
     tipo_multa = identificar_tipo_multa(texto_pagina1)
 
-    destino_final = DOWNLOAD_DIR / cnpj / tipo_multa / f"{auto_infracao}.pdf"
+    # ⚠️ Pasta nomeada com o apelido do CNPJ quando conhecido (pedido do
+    # time em reunião, 25/09/2026, ver cadastro.py) - "{cnpj} - {apelido}",
+    # ou só o CNPJ se não houver apelido cadastrado (caso real, não só
+    # teórico - ver docstring de nome_pasta_cnpj()).
+    destino_final = DOWNLOAD_DIR / nome_pasta_cnpj(cnpj) / tipo_multa / f"{auto_infracao}.pdf"
     destino_final.parent.mkdir(parents=True, exist_ok=True)
     substituir_com_retentativa(destino_tmp, destino_final)
 

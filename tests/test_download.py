@@ -68,6 +68,34 @@ def test_already_downloaded_nao_encontra_auto_diferente_no_mesmo_cnpj(tmp_path, 
     assert already_downloaded("CRGTF00099999999", "92660604000182") is None
 
 
+def test_already_downloaded_encontra_na_pasta_com_apelido(tmp_path, monkeypatch):
+    """Achado em reunião com o time, 25/09/2026: pasta agora é nomeada
+    "{cnpj} - {apelido}" quando conhecido (ver cadastro.py) -
+    already_downloaded() precisa achar autos guardados com esse nome."""
+    monkeypatch.setattr(download_mod, "DOWNLOAD_DIR", tmp_path)
+    monkeypatch.setattr(download_mod, "nome_pasta_cnpj", lambda cnpj: f"{cnpj} - VIX3")
+    pasta = tmp_path / "92660604012784 - VIX3" / "Excesso de Peso"
+    pasta.mkdir(parents=True)
+    (pasta / "EPSMA00087472019.pdf").write_bytes(b"%PDF-1.4")
+
+    encontrado = already_downloaded("EPSMA00087472019", "92660604012784")
+    assert encontrado == pasta / "EPSMA00087472019.pdf"
+
+
+def test_already_downloaded_encontra_na_pasta_legada_sem_apelido(tmp_path, monkeypatch):
+    """Se o auto foi baixado ANTES da migração pra pastas com apelido (ou
+    a migração ainda não rodou pra esse CNPJ específico), continua sendo
+    encontrado na pasta antiga (só CNPJ) - nunca gera redownload à toa."""
+    monkeypatch.setattr(download_mod, "DOWNLOAD_DIR", tmp_path)
+    monkeypatch.setattr(download_mod, "nome_pasta_cnpj", lambda cnpj: f"{cnpj} - VIX3")
+    pasta_legada = tmp_path / "92660604012784" / "Excesso de Peso"  # sem apelido, formato antigo
+    pasta_legada.mkdir(parents=True)
+    (pasta_legada / "EPSMA00087472019.pdf").write_bytes(b"%PDF-1.4")
+
+    encontrado = already_downloaded("EPSMA00087472019", "92660604012784")
+    assert encontrado == pasta_legada / "EPSMA00087472019.pdf"
+
+
 # ---------------------------------------------------------------------------
 # _mensagem_tabela_vazia() - precisa de Page (lê o DOM), sem sessão/portal.
 # ---------------------------------------------------------------------------

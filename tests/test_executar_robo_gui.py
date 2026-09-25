@@ -70,6 +70,26 @@ def test_janela_inicial_tem_campo_de_workers_com_default_5(app):
     assert app._campo_workers.get() == "5"
 
 
+def test_iniciar_com_menos_que_o_minimo_de_workers_mostra_erro_e_nao_avanca(app, monkeypatch):
+    """Achado em reunião com o time, 25/09/2026: menos de 5 workers ficava
+    lento demais na prática - virou um mínimo obrigatório, não mais só
+    uma sugestão."""
+    _resetar(app)
+    app._campo_workers.delete(0, "end")
+    app._campo_workers.insert(0, "3")
+
+    mostrou_erro = []
+    monkeypatch.setattr(
+        executar_robo_gui.messagebox, "showerror", lambda *a, **k: mostrou_erro.append(a)
+    )
+
+    app._ao_clicar_iniciar()
+
+    assert mostrou_erro
+    assert "5" in mostrou_erro[0][1]
+    assert app._frame_inicial.winfo_exists()  # não avançou pra tela de execução
+
+
 def test_tela_execucao_cria_1_linha_por_worker(app):
     _resetar(app, total_workers=3)
     assert len(app._linhas_worker) == 3

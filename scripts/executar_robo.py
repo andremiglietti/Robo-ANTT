@@ -46,6 +46,13 @@ from robo_antt import config  # noqa: E402
 PORTAL_LOGIN_URL = "https://appweb1.antt.gov.br/spmi/Site/Login.aspx?ReturnUrl=%2fspmi%2fSite%2fBoleto%2fListar.aspx"
 LOG_DIR = BASE_DIR / "data" / "logs"
 
+# Achado em reunião com o time, 25/09/2026: menos de 5 workers deixa a
+# varredura completa lenta demais na prática - fixado como mínimo (não
+# mais uma sugestão que dava pra baixar à vontade). Compartilhado entre
+# a versão terminal (aqui) e a GUI (executar_robo_gui.py, que importa
+# este módulo) pra nunca divergir.
+MINIMO_WORKERS = 5
+
 
 def _log(msg: str) -> None:
     """print com fallback defensivo contra UnicodeEncodeError (mesmo padrão
@@ -64,16 +71,16 @@ def _ler_quantidade_workers() -> int:
     while True:
         texto = input(
             "\nQuantos 'trabalhadores' (workers) usar nesta varredura? "
-            "(recomendado: 5 - mais rápido, mas exige um login por worker)\n"
+            f"(mínimo: {MINIMO_WORKERS} - exige um login por worker)\n"
             "Quantidade: "
         ).strip()
         try:
             n = int(texto)
-            if n >= 1:
+            if n >= MINIMO_WORKERS:
                 return n
         except ValueError:
             pass
-        _log("Digite um número inteiro de 1 ou mais.")
+        _log(f"Digite um número inteiro de {MINIMO_WORKERS} ou mais.")
 
 
 def _login_worker(worker_id: int) -> None:

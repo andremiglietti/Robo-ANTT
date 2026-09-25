@@ -40,6 +40,7 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from executar_robo import (  # noqa: E402
     LOG_DIR,
+    MINIMO_WORKERS,
     PORTAL_LOGIN_URL,
     _consolidar_planilha_final,
     _contar_linhas_planilha,
@@ -279,14 +280,14 @@ class AppRobo(tk.Tk):
         linha = tk.Frame(self._frame_inicial)
         linha.pack(anchor="w")
         tk.Label(linha, text="Quantos 'trabalhadores' (workers) usar? ").pack(side="left")
-        self._campo_workers = tk.Spinbox(linha, from_=1, to=15, width=5)
+        self._campo_workers = tk.Spinbox(linha, from_=MINIMO_WORKERS, to=15, width=5)
         self._campo_workers.delete(0, "end")
-        self._campo_workers.insert(0, "5")
+        self._campo_workers.insert(0, str(MINIMO_WORKERS))
         self._campo_workers.pack(side="left")
 
         tk.Label(
             self._frame_inicial,
-            text="(recomendado: 5 - mais rápido, mas exige um login por worker)",
+            text=f"(mínimo: {MINIMO_WORKERS} - exige um login por worker)",
             fg="gray30",
         ).pack(anchor="w", pady=(2, 20))
 
@@ -298,10 +299,10 @@ class AppRobo(tk.Tk):
     def _ao_clicar_iniciar(self) -> None:
         try:
             total_workers = int(self._campo_workers.get())
-            if total_workers < 1:
+            if total_workers < MINIMO_WORKERS:
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Robô ANTT", "Digite um número inteiro de 1 ou mais.")
+            messagebox.showerror("Robô ANTT", f"Digite um número inteiro de {MINIMO_WORKERS} ou mais.")
             return
 
         self._frame_inicial.destroy()
