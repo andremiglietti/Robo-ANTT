@@ -21,6 +21,20 @@ Excel — sem precisar entrar auto por auto manualmente.
   logins você precisa fazer no começo.
 - Recomendado: **5 workers**.
 
+## Primeira vez neste computador
+
+Se for a primeira vez que o programa roda nesse computador específico,
+o mesmo atalho **"Rodar_Robo_ANTT"** já prepara tudo sozinho (não precisa
+instalar nada manualmente antes): uma janela preta vai aparecer, mostrando
+o progresso da preparação — isso pode levar alguns minutos (precisa de
+internet). Quando terminar, o programa abre automaticamente. **Da 2ª vez
+em diante**, o mesmo atalho abre o programa direto, sem essa espera.
+
+Se essa janela preta mostrar uma mensagem de erro, ela já vem com
+instruções do que fazer — geralmente é só verificar a conexão com a
+internet e clicar de novo no atalho. Se persistir, copie a mensagem e
+mande para o suporte técnico (ver contato no fim deste guia).
+
 ## Passo a passo
 
 ### 1. Abrir o programa
