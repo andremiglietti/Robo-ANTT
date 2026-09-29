@@ -30,12 +30,17 @@ Garantias de completude, em duas frentes independentes (ver
 "=== VERIFICAÇÃO DE COMPLETUDE ===" no final do log): (1) PAGINAÇÃO - toda
 combinação CNPJ×tipo incompleta (busca/paginação interrompida por erro) é
 retentada automaticamente até 3 vezes dentro da mesma execução; (2)
-DOCUMENTO - toda falha de download/extração com CNPJ+tipo conhecido (ver
-checkpoint.marcar_falha()/falhas_retentaveis(), 19/09/2026) também é
-retentada diretamente até 3 vezes, sem depender de a combinação ser
-revisitada por acaso numa execução futura (achado ao vivo: mudar o número
-de workers entre execuções podia deixar falhas de documento pendentes pra
-sempre, sem nenhum erro).
+DOCUMENTO - toda falha de download/extração NOVA (não ainda confirmada como
+problema permanente do servidor - ver checkpoint.falha_provavelmente_
+permanente()) com CNPJ+tipo conhecido (ver checkpoint.marcar_falha()/
+falhas_retentaveis(), 19/09/2026) também é retentada diretamente até 3
+vezes, sem depender de a combinação ser revisitada por acaso numa execução
+futura (achado ao vivo: mudar o número de workers entre execuções podia
+deixar falhas de documento pendentes pra sempre, sem nenhum erro). Falhas
+já confirmadas permanentes NÃO recebem retentativa direcionada (29/09/2026,
+pedido do usuário - "não para o que já é conhecido") - continuam sendo
+tentadas só organicamente, pela varredura normal, quando a combinação cai
+na partição do worker.
 """
 import sys
 import time
@@ -597,11 +602,46 @@ def _rodar_impl(
             # brinde, sem custo extra.
             falhas_iniciais = checkpoint.falhas_retentaveis(estado)
             if falhas_iniciais:
-                combinacoes = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in falhas_iniciais}
-                _log(
-                    f"\n{rotulo_worker}=== Retentando {len(falhas_iniciais)} falha(s) de documento pendente(s) "
-                    f"({len(combinacoes)} combinação(ões) CNPJ×tipo) ==="
-                )
+                combinacoes_com_falha = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in falhas_iniciais}
+                # ⚠️ Pedido do usuário em 29/09/2026: "só devemos fazer
+                # retentativas no final do programa para novas falhas, não
+                # para o que já é conhecido". Achado que motivou isso: a
+                # varredura NORMAL (acima, no loop principal) já tenta baixar
+                # todo documento sem sucesso registrado - inclusive os já
+                # confirmados como falha permanente - sempre que a combinação
+                # cai na partição deste worker. Antes, mesmo assim, a "rodada
+                # 1" da retentativa direcionada testava TODAS as falhas de
+                # novo (de propósito - "1 chance por execução", pra pegar o
+                # caso raro do servidor ter sido corrigido) - na prática, isso
+                # tentava um documento já permanente DUAS vezes na mesma
+                # execução (1x na varredura normal, 1x aqui), minutos depois,
+                # sem nenhuma chance real a mais de sucesso (mesmo padrão já
+                # usado nas rodadas 2/3, ver _combinacao_so_tem_falhas_
+                # permanentes() abaixo - agora aplicado já na rodada 1
+                # também, não só a partir da 2ª).
+                combinacoes = {
+                    (cnpj_v, tipo_v)
+                    for cnpj_v, tipo_v in combinacoes_com_falha
+                    if not _combinacao_so_tem_falhas_permanentes(estado, cnpj_v, tipo_v)
+                }
+                puladas_de_cara = len(combinacoes_com_falha) - len(combinacoes)
+                if combinacoes:
+                    detalhe_puladas = (
+                        f" ({puladas_de_cara} combinação(ões) com falha já permanente pulada(s) - "
+                        "já tentada(s) na varredura normal desta execução)"
+                        if puladas_de_cara
+                        else ""
+                    )
+                    _log(
+                        f"\n{rotulo_worker}=== Retentando falha(s) de documento pendente(s) em "
+                        f"{len(combinacoes)} combinação(ões) CNPJ×tipo com falha nova{detalhe_puladas} ==="
+                    )
+                elif puladas_de_cara:
+                    _log(
+                        f"\n{rotulo_worker}=== {puladas_de_cara} combinação(ões) com falha pendente, mas "
+                        "só falha(s) já confirmada(s) permanente(s) (já tentada(s) na varredura normal "
+                        "desta execução) - nenhuma retentativa direcionada extra necessária ==="
+                    )
                 tentativa_falha = 1
                 while combinacoes and tentativa_falha <= 3:
                     pendentes_combo = combinacoes
@@ -629,19 +669,15 @@ def _rodar_impl(
                     # recalcula com base no que REALMENTE continua falhando
                     # depois desta rodada (não assume que tudo resolveu)
                     combinacoes = {(cnpj_v, tipo_v) for _, cnpj_v, tipo_v in checkpoint.falhas_retentaveis(estado)}
-                    # ⚠️ Pedido do usuário em 24/09/2026: "não acho que vale a
-                    # pena tentar retentativas de baixar alguns arquivos que
-                    # já sabemos que tem falha... esses que já sabemos que são
-                    # um problema podíamos testar apenas uma vez". A rodada 1
-                    # (acima) já deu 1 chance pra TODAS as falhas, novas ou
-                    # antigas - a partir daqui, combinações cujas falhas
-                    # restantes já são "provavelmente permanentes" (várias
-                    # tentativas acumuladas entre execuções, sempre o mesmo
-                    # resultado - ver checkpoint.falha_provavelmente_
-                    # permanente()) não recebem mais rodadas: continuam
-                    # aparecendo no relatório final como pendentes (não ficam
-                    # escondidas), só não desperdiçam mais 2 rodadas inteiras
-                    # de repaginação nesta mesma execução. Combinações com
+                    # ⚠️ Pedido do usuário em 24/09/2026 (refinado em
+                    # 29/09/2026 - ver achado acima, já aplicado antes da
+                    # rodada 1 também): combinações cujas falhas restantes já
+                    # são "provavelmente permanentes" (várias tentativas
+                    # acumuladas entre execuções, sempre o mesmo resultado -
+                    # ver checkpoint.falha_provavelmente_permanente()) não
+                    # recebem mais rodadas - continuam aparecendo no relatório
+                    # final como pendentes (não ficam escondidas), só não
+                    # desperdiçam mais tempo de repaginação. Combinações com
                     # pelo menos 1 falha ainda "nova" continuam retentando
                     # normalmente.
                     combinacoes = {
@@ -742,14 +778,17 @@ def _rodar_impl(
         # possíveis em checkpoints salvos antes de hoje, formato antigo) não
         # têm como ser retentadas diretamente - só descobertas de novo por
         # acaso numa varredura que passe pela combinação certa.
-        # ⚠️ Achado em 24/09/2026 (junto com a otimização de não gastar
-        # rodadas extras em falha já confirmada como permanente - ver
-        # _combinacao_so_tem_falhas_permanentes()): a frase antiga dizia
-        # "já retentadas... até 3 vezes cada" pra TODAS as falhas com
-        # cnpj/tipo - deixou de ser verdade pras falhas permanentes, que
-        # agora só recebem 1 tentativa por execução de propósito. O
-        # relatório final precisa distinguir as 3 categorias reais, senão
-        # fica impreciso sobre o que realmente foi tentado.
+        # ⚠️ Achado em 24/09/2026, refinado em 29/09/2026 (ver achado acima,
+        # já aplicado desde a rodada 1 da retentativa direcionada): a frase
+        # antiga dizia "já retentadas... até 3 vezes cada" pra TODAS as
+        # falhas com cnpj/tipo - deixou de ser verdade pras falhas
+        # permanentes, que agora NÃO recebem nenhuma retentativa direcionada
+        # de propósito (só continuam sendo tentadas organicamente pela
+        # varredura normal, quando a combinação cai na partição deste
+        # worker - "só devemos fazer retentativas... para novas falhas, não
+        # para o que já é conhecido", pedido do usuário). O relatório final
+        # precisa distinguir as 3 categorias reais, senão fica impreciso
+        # sobre o que realmente foi tentado.
         retentaveis = checkpoint.falhas_retentaveis(estado)
         legadas = len(estado["falhas"]) - len(retentaveis)
         permanentes = sum(1 for auto, _, _ in retentaveis if checkpoint.falha_provavelmente_permanente(estado, auto))
@@ -764,7 +803,8 @@ def _rodar_impl(
         if permanentes:
             partes_detalhe.append(
                 f"{permanentes} já confirmada(s) como problema permanente do servidor em execuções anteriores "
-                "(testada(s) só 1 vez nesta execução, por precaução, sem gastar as rodadas extras à toa)"
+                "(sem retentativa direcionada nesta execução, de propósito - só é retentada organicamente se "
+                "a varredura normal passar por ela)"
             )
         if legadas:
             partes_detalhe.append(
