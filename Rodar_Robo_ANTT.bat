@@ -13,8 +13,30 @@ REM vez, .venv ja existe e o atalho pula direto pra abrir o programa,
 REM exatamente como sempre funcionou (pythonw.exe, sem janela preta).
 cd /d "%~dp0"
 
-if exist ".venv\Scripts\pythonw.exe" goto :abrir
+REM 29/09/2026, achado ao vivo: se a pasta inteira do projeto for copiada
+REM pra outro computador (em vez de baixada/clonada do zero), o .venv
+REM vem junto - mas um ambiente virtual do Python NAO E PORTAVEL, ele
+REM tem o caminho do computador ONDE FOI CRIADO gravado dentro de si
+REM (pyvenv.cfg). Rodando num computador diferente, esse .venv "existe"
+REM (passa na checagem antiga) mas nao funciona - da o mesmo erro
+REM "nao encontrou o caminho", so que agora apontando pro computador
+REM ERRADO (o de origem, nao o de quem esta tentando usar). Corrigido:
+REM confirma que o .venv encontrado FUNCIONA de verdade antes de
+REM confiar nele - se nao funcionar, apaga e prepara um novo do zero
+REM sozinho, sem precisar que a pessoa entenda o motivo.
+if not exist ".venv\Scripts\pythonw.exe" goto :primeira_vez
+".venv\Scripts\python.exe" --version >nul 2>&1
+if not errorlevel 1 goto :abrir
 
+echo ============================================================
+echo   O programa encontrado neste computador nao funciona
+echo   corretamente (provavelmente foi copiado de outro computador,
+echo   nao instalado direto aqui). Preparando um novo, do zero...
+echo ============================================================
+echo.
+rmdir /s /q ".venv"
+
+:primeira_vez
 REM ===================== Primeira vez neste computador =====================
 echo ============================================================
 echo   Robo ANTT - preparando o programa neste computador (1a vez)
