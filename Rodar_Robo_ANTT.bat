@@ -98,6 +98,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Confirma que o ambiente recem-criado funciona de verdade (nao so que
+REM os arquivos foram criados) - pega qualquer problema aqui, cedo e com
+REM mensagem clara, em vez de descobrir so no final tentando abrir o
+REM programa.
+".venv\Scripts\python.exe" --version >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ERRO: o ambiente criado nao funciona corretamente. Copie esta
+    echo mensagem e envie para o suporte tecnico ^(Andre Miglietti^).
+    pause
+    exit /b 1
+)
+
 REM --- Passo 3: instalar os componentes necessarios ---
 echo Instalando os componentes necessarios ^(pode levar alguns minutos^)...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
@@ -142,8 +155,20 @@ start "" ".venv\Scripts\pythonw.exe" "scripts\executar_robo_gui.py"
 exit /b 0
 
 REM Sub-rotina (so chamada via "call") - confirma que o Python encontrado
-REM em PYEXE tem um pythonw.exe de verdade do lado, nao so um atalho
-REM incompleto da Microsoft Store (ver achado de 29/09/2026 acima).
+REM em PYEXE e um Python de verdade, nao o atalho incompleto da
+REM Microsoft Store (pasta ...\WindowsApps\...).
+REM
+REM 29/09/2026, achado ao vivo em 2 computadores diferentes: a 1a versao
+REM dessa checagem so confirmava que um "pythonw.exe" existe do lado do
+REM python.exe encontrado - nao bastou, porque a Microsoft Store deixa
+REM um ARQUIVO "pythonw.exe" de mentira la (um atalho/placeholder do
+REM Windows, existe no disco mas nao funciona de verdade) - a checagem
+REM de existencia sozinha aceitava esse atalho por engano, o "venv" era
+REM criado apontando pra ele, e o erro so aparecia DEPOIS, tentando abrir
+REM o programa de verdade ("Python venv launcher is sorry to say...").
+REM Corrigido: agora tambem rejeita explicitamente qualquer Python cujo
+REM caminho contenha "WindowsApps" - o sinal mais direto e confiavel de
+REM que e o atalho da Store, nao uma instalacao completa.
 :tem_pythonw_de_verdade
-%PYEXE% -c "import sys, os; p = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'); sys.exit(0 if os.path.exists(p) else 1)" >nul 2>&1
+%PYEXE% -c "import sys, os; exe = sys.executable; pyw = os.path.join(os.path.dirname(exe), 'pythonw.exe'); ok = os.path.exists(pyw) and 'windowsapps' not in exe.lower(); sys.exit(0 if ok else 1)" >nul 2>&1
 exit /b %errorlevel%
