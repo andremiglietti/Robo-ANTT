@@ -23,26 +23,43 @@ echo   (Da proxima vez, o programa abre direto, sem essa espera.)
 echo ============================================================
 echo.
 
-REM --- Passo 1: localizar o Python 3.13 ja instalado, se houver ---
+REM --- Passo 1: localizar um Python 3.13 REAL ja instalado, se houver ---
+REM 29/09/2026, achado ao vivo noutro computador: o Windows costuma ter
+REM um "python"/"py" no PATH que na verdade e so um atalho da Microsoft
+REM Store (pasta AppData\Local\Microsoft\WindowsApps\...) - ele responde
+REM "3.13" no --version, mas e uma instalacao incompleta, sem
+REM pythonw.exe, e o "python -m venv" quebra com um erro tecnico
+REM confuso. A checagem agora confirma que existe um pythonw.exe de
+REM verdade do lado do python.exe encontrado, nao so a versao - se nao
+REM tiver, trata como "nao encontrado" e tenta instalar uma versao
+REM completa (mesmo fluxo de sempre).
 set PYEXE=
 py -3.13 -c "" >nul 2>&1
-if not errorlevel 1 (
-    set PYEXE=py -3.13
-    goto :python_ok
-)
-python --version 2>&1 | findstr /C:"3.13" >nul
-if not errorlevel 1 (
-    set PYEXE=python
-    goto :python_ok
-)
+if errorlevel 1 goto :tentar_python_generico
+set PYEXE=py -3.13
+call :tem_pythonw_de_verdade
+if not errorlevel 1 goto :python_ok
 
-echo O Python 3.13 nao foi encontrado neste computador.
-echo Tentando instalar automaticamente (isso pode levar alguns minutos)...
+:tentar_python_generico
+python --version 2>&1 | findstr /C:"3.13" >nul
+if errorlevel 1 goto :python_nao_encontrado
+set PYEXE=python
+call :tem_pythonw_de_verdade
+if not errorlevel 1 goto :python_ok
+
+:python_nao_encontrado
+echo Nao encontramos uma instalacao completa do Python 3.13 neste
+echo computador (se houver uma versao da Microsoft Store, ela nao
+echo funciona para este programa).
+echo Tentando instalar automaticamente a versao completa (isso pode
+echo levar alguns minutos)...
 echo.
 where winget >nul 2>&1
 if errorlevel 1 goto :sem_winget
 
-winget install --id Python.Python.3.13 -e --silent --scope user --accept-package-agreements --accept-source-agreements
+REM --source winget forca a fonte oficial (Python Software Foundation),
+REM nao a Microsoft Store, que e a origem provavel do problema acima.
+winget install --id Python.Python.3.13 -e --source winget --silent --scope user --accept-package-agreements --accept-source-agreements
 if errorlevel 1 goto :sem_winget
 
 echo.
@@ -122,3 +139,11 @@ if not exist ".venv\Scripts\pythonw.exe" (
     exit /b 1
 )
 start "" ".venv\Scripts\pythonw.exe" "scripts\executar_robo_gui.py"
+exit /b 0
+
+REM Sub-rotina (so chamada via "call") - confirma que o Python encontrado
+REM em PYEXE tem um pythonw.exe de verdade do lado, nao so um atalho
+REM incompleto da Microsoft Store (ver achado de 29/09/2026 acima).
+:tem_pythonw_de_verdade
+%PYEXE% -c "import sys, os; p = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'); sys.exit(0 if os.path.exists(p) else 1)" >nul 2>&1
+exit /b %errorlevel%
