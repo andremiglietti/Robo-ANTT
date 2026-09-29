@@ -404,10 +404,7 @@ class AppRobo(tk.Tk):
         try:
             for worker_id in range(total_workers):
                 self._fila.put(("status_geral", f"Login {worker_id + 1} de {total_workers} - abrindo o portal..."))
-                self._login_worker_gui(worker_id)
-                self._fila.put(("worker_status", worker_id, "login feito - iniciando em segundo plano..."))
-                processo = _iniciar_worker(worker_id, total_workers)
-                self._processos[worker_id] = processo
+                self._fazer_login_e_lancar(worker_id, total_workers)
 
             self._fila.put(
                 (
@@ -424,12 +421,17 @@ class AppRobo(tk.Tk):
             workers_parados_avisados: set[int] = set()
             while True:
                 for worker_id in range(total_workers):
+                    processo = self._processos.get(worker_id)
+                    if processo is None:
+                        # Nunca chegou a ser lançado (login falhou no laço
+                        # inicial - ver _fazer_login_e_lancar()) - não
+                        # sobrescreve a mensagem "[PAROU] falha no login"
+                        # já mostrada com um "iniciando..." genérico (não
+                        # tem log nenhum pra ler mesmo).
+                        continue
                     log_path = LOG_DIR / f"worker_{worker_id}.log"
                     status = _status_legivel(log_path)
                     self._fila.put(("worker_status", worker_id, status))
-                    processo = self._processos.get(worker_id)
-                    if processo is None:
-                        continue
                     parou_agora = status.startswith("[PAROU]") and processo.poll() is not None
                     if parou_agora and worker_id not in workers_parados_avisados:
                         workers_parados_avisados.add(worker_id)
@@ -494,6 +496,38 @@ class AppRobo(tk.Tk):
             browser.close()
         self._evento_login = None
 
+    def _fazer_login_e_lancar(self, worker_id: int, total_workers: int) -> bool:
+        """Faz o login manual de 1 worker e lança o processo dele - usado
+        tanto no laço inicial de login (_orquestrar) quanto na reconexão
+        (_reconectar_worker), pra não duplicar essa lógica nos 2 lugares.
+
+        ⚠️ Achado ao vivo em 29/09/2026 (ver CLAUDE.md): um erro do
+        Playwright durante O LOGIN de 1 worker (ex.: "BrowserContext.
+        storage_state: Connection closed while reading from the driver" -
+        provavelmente a pessoa fechou a janela do navegador antes de
+        _login_worker_gui() terminar de salvar a sessão) subia sem
+        barreira e derrubava a thread inteira de _orquestrar() - mesmo
+        com outros workers já rodando com sucesso em segundo plano, a
+        tela travava mostrando só o erro, sem mais nenhum acompanhamento
+        (e sem nenhum jeito de recuperar pela GUI, já que o "erro" geral
+        desabilita todos os botões "Relogar"). Devolve False (sem
+        propagar a exceção) em vez de derrubar quem chamou - marca esse
+        worker como "[PAROU]" (habilita o "Relogar" dele, mesmo mecanismo
+        já existente) e deixa os outros workers/o resto da orquestração
+        seguirem intactos."""
+        try:
+            self._login_worker_gui(worker_id)
+        except Exception as e:
+            self._fila.put(
+                ("worker_status", worker_id, f"[PAROU] falha no login (clique em Relogar pra tentar de novo) - {e}")
+            )
+            self._fila.put(("worker_parou", worker_id))
+            return False
+        self._fila.put(("worker_status", worker_id, "login feito - iniciando em segundo plano..."))
+        processo = _iniciar_worker(worker_id, total_workers)
+        self._processos[worker_id] = processo
+        return True
+
     def _ao_clicar_relogar(self, worker_id: int, total_workers: int) -> None:
         """Clique no botão "Relogar" de UM worker específico (ver
         docstring do módulo). Roda no thread principal (é um callback de
@@ -523,17 +557,20 @@ class AppRobo(tk.Tk):
         consolidação por conta própria: a thread principal (ainda rodando
         enquanto os outros workers trabalham) pega o processo novo sozinha
         no próximo ciclo, evitando 2 threads competindo pra concluir."""
+        sucesso = False
         try:
             self._fila.put(("status_geral", f"Relogando o Worker {worker_id + 1} - abrindo o portal..."))
-            self._login_worker_gui(worker_id)
-            processo = _iniciar_worker(worker_id, total_workers)
-            self._processos[worker_id] = processo
-            self._fila.put(("worker_status", worker_id, "login feito - voltando a trabalhar..."))
-            self._fila.put(("status_geral", "Os workers estão trabalhando em segundo plano."))
+            sucesso = self._fazer_login_e_lancar(worker_id, total_workers)
+            if sucesso:
+                self._fila.put(("status_geral", "Os workers estão trabalhando em segundo plano."))
         except Exception as e:
+            # _fazer_login_e_lancar() já trata falha de LOGIN internamente
+            # (nunca propaga) - isto aqui cobre qualquer outra falha
+            # inesperada (ex.: _iniciar_worker() em si) pra nunca deixar a
+            # reconexão "sumir" sem avisar.
             self._fila.put(("reconexao_erro", worker_id, str(e)))
         finally:
-            self._fila.put(("reconexao_finalizada", worker_id))
+            self._fila.put(("reconexao_finalizada", worker_id, sucesso))
 
     # ------------------------------------------------------------------
     # Thread principal - único lugar que mexe em widgets
@@ -569,8 +606,14 @@ class AppRobo(tk.Tk):
             if not self._execucao_concluida and not self._reconectando:
                 self._linhas_worker[worker_id]["botao_relogar"].config(state="normal")
         elif tipo == "reconexao_finalizada":
-            worker_id = mensagem[1]
-            self._workers_parados.discard(worker_id)
+            # ⚠️ Achado em 29/09/2026: se a RECONEXÃO em si falhar de novo
+            # (login falhou outra vez), esse worker precisa CONTINUAR em
+            # _workers_parados (senão o botão "Relogar" dele fica preso
+            # desabilitado pra sempre) - por isso o "sucesso" explícito,
+            # não um discard incondicional como antes.
+            worker_id, sucesso = mensagem[1], mensagem[2]
+            if sucesso:
+                self._workers_parados.discard(worker_id)
             self._reconectando = False
             if not self._execucao_concluida:
                 for wid in self._workers_parados:

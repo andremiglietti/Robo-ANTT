@@ -13,6 +13,7 @@ de uma instalação de Python completamente diferente) - limitação
 conhecida do Tkinter, não um bug do código. `_resetar()` limpa e
 reconstrói só o CONTEÚDO da janela entre testes, sem recriar o Tk() raiz.
 """
+import queue
 import sys
 import threading
 from pathlib import Path
@@ -49,6 +50,7 @@ def _resetar(app, total_workers: int | None = None):
     app._reconectando = False
     app._execucao_concluida = False
     app._workers_parados = set()
+    app._processos = {}
 
     if total_workers is None:
         app._montar_tela_inicial()
@@ -349,9 +351,10 @@ def test_ao_clicar_relogar_apos_concluido_mostra_aviso_sem_disparar_thread(app, 
     assert not chamou_thread
 
 
-def test_mensagem_reconexao_finalizada_libera_flag_e_reabilita_pendentes(app):
-    """2 workers pararam; reconecta o worker 0 - ao terminar, o botão do
-    worker 1 (que continuava parado) volta a ficar disponível."""
+def test_mensagem_reconexao_finalizada_com_sucesso_libera_flag_e_reabilita_pendentes(app):
+    """2 workers pararam; reconecta o worker 0 COM SUCESSO - ao terminar,
+    o botão do worker 0 fica sem uso (removido de _workers_parados) e o
+    do worker 1 (que continuava parado) volta a ficar disponível."""
     _resetar(app, total_workers=2)
     app._tratar_mensagem(("worker_parou", 0))
     app._tratar_mensagem(("worker_parou", 1))
@@ -360,12 +363,31 @@ def test_mensagem_reconexao_finalizada_libera_flag_e_reabilita_pendentes(app):
         linha["botao_relogar"].config(state="disabled")
     app.update()
 
-    app._tratar_mensagem(("reconexao_finalizada", 0))
+    app._tratar_mensagem(("reconexao_finalizada", 0, True))
     app.update()
 
     assert app._reconectando is False
     assert 0 not in app._workers_parados
     assert app._linhas_worker[1]["botao_relogar"]["state"] == "normal"
+
+
+def test_mensagem_reconexao_finalizada_sem_sucesso_mantem_botao_disponivel(app):
+    """Achado ao vivo em 29/09/2026: se a reconexão falhar de novo (login
+    falhou outra vez), o worker precisa CONTINUAR em _workers_parados e
+    com o botão disponível - senão ficaria preso desabilitado pra sempre,
+    sem nenhum jeito de tentar de novo pela tela."""
+    _resetar(app, total_workers=1)
+    app._tratar_mensagem(("worker_parou", 0))
+    app._reconectando = True
+    app._linhas_worker[0]["botao_relogar"].config(state="disabled")
+    app.update()
+
+    app._tratar_mensagem(("reconexao_finalizada", 0, False))
+    app.update()
+
+    assert app._reconectando is False
+    assert 0 in app._workers_parados
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "normal"
 
 
 def test_mensagem_reconexao_erro_mostra_aviso_sem_travar(app):
@@ -376,6 +398,108 @@ def test_mensagem_reconexao_erro_mostra_aviso_sem_travar(app):
 
     assert "Worker 1" in app._label_status_geral["text"]
     assert "falha simulada de login" in app._label_status_geral["text"]
+
+
+# ---------------------------------------------------------------------------
+# _fazer_login_e_lancar() - achado ao vivo em 29/09/2026: um erro do
+# Playwright durante o LOGIN de 1 worker (ex.: "BrowserContext.storage_state:
+# Connection closed while reading from the driver") derrubava a thread
+# inteira de _orquestrar() - mesmo com outros workers já rodando com
+# sucesso, a tela travava sem mais nenhum acompanhamento. Testado sem
+# navegador real (monkeypatch em _login_worker_gui/_iniciar_worker).
+# ---------------------------------------------------------------------------
+
+
+def test_fazer_login_e_lancar_sucesso(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    monkeypatch.setattr(app, "_login_worker_gui", lambda wid: None)
+    processo_falso = object()
+    monkeypatch.setattr(executar_robo_gui, "_iniciar_worker", lambda wid, total: processo_falso)
+
+    resultado = app._fazer_login_e_lancar(0, total_workers=1)
+    _drenar_fila(app)
+
+    assert resultado is True
+    assert app._processos[0] is processo_falso
+    assert "login feito" in app._linhas_worker[0]["label"]["text"]
+
+
+def test_fazer_login_e_lancar_falha_no_login_nao_propaga_excecao(app, monkeypatch):
+    """O caso real do erro ao vivo: _login_worker_gui() levanta uma
+    exceção do Playwright - devolve False (não propaga), marca o worker
+    como [PAROU] e habilita o botão "Relogar", em vez de derrubar quem
+    chamou (o laço de login inicial em _orquestrar, ou a reconexão)."""
+    _resetar(app, total_workers=1)
+
+    def _login_que_falha(wid):
+        raise Exception("BrowserContext.storage_state: Connection closed while reading from the driver")
+
+    monkeypatch.setattr(app, "_login_worker_gui", _login_que_falha)
+
+    resultado = app._fazer_login_e_lancar(0, total_workers=1)
+    _drenar_fila(app)
+
+    assert resultado is False
+    assert 0 not in app._processos
+    assert "[PAROU]" in app._linhas_worker[0]["label"]["text"]
+    assert app._linhas_worker[0]["botao_relogar"]["state"] == "normal"
+
+
+def _drenar_fila(app):
+    while True:
+        try:
+            app._tratar_mensagem(app._fila.get_nowait())
+        except queue.Empty:
+            break
+    app.update()
+
+
+def test_orquestrar_nao_trava_tudo_se_1_login_falhar_no_meio_do_laco(app, monkeypatch):
+    """Reprodução direta do erro real relatado ao vivo em 29/09/2026: o
+    usuário logou os 5 workers, e o login de 1 deles quebrou com
+    "BrowserContext.storage_state: Connection closed while reading from
+    the driver" (provável fechamento do navegador antes da hora) - a
+    tela travou mostrando só esse erro, sem mais acompanhamento dos
+    outros workers (que já tinham logado/lançado com sucesso). Este
+    teste chama _orquestrar() diretamente (sem thread própria - já é
+    síncrono o bastante pra um teste) com o login do worker 2 quebrando
+    de propósito, e confirma que os workers 0/1 continuam sendo
+    acompanhados até o fim (não travados no "erro" geral)."""
+    _resetar(app, total_workers=3)
+
+    class _ProcessoFalso:
+        def poll(self):
+            return 0  # já "terminou" - some da fila de polling na hora
+
+    def _login_fake(wid):
+        if wid == 2:
+            raise Exception("BrowserContext.storage_state: Connection closed while reading from the driver")
+
+    monkeypatch.setattr(app, "_login_worker_gui", _login_fake)
+    monkeypatch.setattr(executar_robo_gui, "_iniciar_worker", lambda wid, total: _ProcessoFalso())
+    monkeypatch.setattr(executar_robo_gui, "_status_legivel", lambda log_path: "[OK] concluído")
+    monkeypatch.setattr(executar_robo_gui, "_contar_linhas_planilha", lambda caminho: 10)
+    monkeypatch.setattr(executar_robo_gui, "_consolidar_planilha_final", lambda: None)
+    monkeypatch.setattr(executar_robo_gui, "calcular_completude", lambda: {"cem_por_cento": True})
+    monkeypatch.setattr(executar_robo_gui.time, "sleep", lambda segundos: None)
+
+    app._orquestrar(3)
+    _drenar_fila(app)
+
+    assert app._processos.get(0) is not None
+    assert app._processos.get(1) is not None
+    assert 2 not in app._processos
+    assert "[PAROU]" in app._linhas_worker[2]["label"]["text"]
+    # Neste cenário os workers 0/1 "terminam" na hora (poll() falso) e a
+    # execução chega a "concluído" de verdade - nesse ponto o botão
+    # "Relogar" fica desabilitado por design (ninguém mais monitora pra
+    # pegar um relançamento, ver mensagem "concluido"/_execucao_concluida)
+    # - não é um bug, é o mesmo comportamento já coberto por
+    # test_mensagem_concluido_desabilita_botoes_relogar_restantes.
+    assert app._linhas_worker[2]["botao_relogar"]["state"] == "disabled"
+    # terminou de verdade (consolidou/concluiu) - não ficou preso no "erro"
+    assert app._execucao_concluida is True
+    assert "CONCLU" in app._label_status_geral["text"]
 
 
 def test_mensagem_concluido_desabilita_botoes_relogar_restantes(app):
