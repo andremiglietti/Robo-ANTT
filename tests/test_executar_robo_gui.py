@@ -51,6 +51,10 @@ def _resetar(app, total_workers: int | None = None):
     app._execucao_concluida = False
     app._workers_parados = set()
     app._processos = {}
+    # Cancelamento (29/09/2026) também precisa de um Event novo a cada
+    # teste - reaproveitar o mesmo objeto "vazaria" um cancelamento já
+    # setado de um teste anterior pro próximo.
+    app._cancelado = threading.Event()
 
     if total_workers is None:
         app._montar_tela_inicial()
@@ -599,3 +603,208 @@ def test_ao_clicar_escolher_pasta_valida_salva_e_reinicia(app, monkeypatch, tmp_
     assert chamou_reiniciar == [True]
     assert config._carregar_sharepoint_dir_configurado() == pasta_escolhida
     assert pasta_escolhida.exists()  # a pasta em si também foi criada (_pasta_e_gravavel)
+
+
+# ---------------------------------------------------------------------------
+# Cancelamento (29/09/2026, pedido do usuário: "um botão que permita
+# cancelar a varredura, caso seja necessário parar de executar o programa").
+# ---------------------------------------------------------------------------
+
+
+def test_botao_cancelar_existe_e_comeca_habilitado(app):
+    _resetar(app, total_workers=2)
+    assert app._botao_cancelar["state"] == "normal"
+
+
+def test_ao_clicar_cancelar_recusado_nao_faz_nada(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    monkeypatch.setattr(executar_robo_gui.messagebox, "askyesno", lambda *a, **k: False)
+
+    app._ao_clicar_cancelar()
+
+    assert not app._cancelado.is_set()
+    assert app._botao_cancelar["state"] == "normal"
+
+
+def test_ao_clicar_cancelar_confirmado_seta_flag_e_desabilita_botao(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    monkeypatch.setattr(executar_robo_gui.messagebox, "askyesno", lambda *a, **k: True)
+
+    app._ao_clicar_cancelar()
+
+    assert app._cancelado.is_set()
+    assert app._botao_cancelar["state"] == "disabled"
+    assert "Cancelando" in app._label_status_geral["text"]
+
+
+def test_ao_clicar_cancelar_libera_login_pendente(app, monkeypatch):
+    """Se tiver um login pendente (navegador aberto esperando "Já fiz
+    login"), cancelar precisa liberar esse wait() na hora, não só marcar
+    a flag geral - ver _login_worker_gui()."""
+    _resetar(app, total_workers=1)
+    monkeypatch.setattr(executar_robo_gui.messagebox, "askyesno", lambda *a, **k: True)
+    app._evento_login = threading.Event()
+    app._botao_login.config(state="normal")
+
+    app._ao_clicar_cancelar()
+
+    assert app._evento_login.is_set()
+    assert app._botao_login["state"] == "disabled"
+
+
+def test_ao_clicar_cancelar_nao_faz_nada_se_ja_concluido(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    app._execucao_concluida = True
+    chamou_confirmacao = []
+    monkeypatch.setattr(executar_robo_gui.messagebox, "askyesno", lambda *a, **k: chamou_confirmacao.append(True))
+
+    app._ao_clicar_cancelar()
+
+    assert not chamou_confirmacao
+    assert not app._cancelado.is_set()
+
+
+def test_ao_clicar_cancelar_nao_faz_nada_se_ja_cancelado(app, monkeypatch):
+    _resetar(app, total_workers=1)
+    app._cancelado.set()
+    chamou_confirmacao = []
+    monkeypatch.setattr(executar_robo_gui.messagebox, "askyesno", lambda *a, **k: chamou_confirmacao.append(True))
+
+    app._ao_clicar_cancelar()
+
+    assert not chamou_confirmacao
+
+
+def test_mensagem_cancelado_com_totais(app):
+    _resetar(app, total_workers=1)
+
+    app._tratar_mensagem(("cancelado", "C:/fake/Relatorio_Multas.xlsx", 50, 3))
+    app.update()
+
+    assert app._execucao_concluida is True
+    assert app._botao_cancelar["state"] == "disabled"
+    assert "CANCELADO" in app._label_status_geral["text"]
+    assert "50 multa" in app._label_resultado_final["text"]
+    assert "3 nova" in app._label_resultado_final["text"]
+
+
+def test_mensagem_cancelado_sem_totais_nao_quebra(app):
+    """Se a consolidação de melhor esforço falhar (ex.: sessão também
+    caiu no meio do cancelamento), total/novas vêm None - a tela precisa
+    mostrar isso com clareza, sem quebrar nem mostrar "None" cru."""
+    _resetar(app, total_workers=1)
+
+    app._tratar_mensagem(("cancelado", "C:/fake/Relatorio_Multas.xlsx", None, None))
+    app.update()
+
+    assert "None" not in app._label_resultado_final["text"]
+    assert "não foi possível confirmar" in app._label_resultado_final["text"]
+
+
+def test_fazer_login_e_lancar_propaga_cancelamento_sem_marcar_falha(app, monkeypatch):
+    """_CancelamentoSolicitado não é uma falha de login de verdade - tem
+    que subir pra quem chamou (o laço de _orquestrar ou a reconexão)
+    tratar, não pode ser engolida nem virar "[PAROU] falha no login"."""
+    _resetar(app, total_workers=1)
+
+    def _login_cancelado(wid):
+        raise executar_robo_gui._CancelamentoSolicitado()
+
+    monkeypatch.setattr(app, "_login_worker_gui", _login_cancelado)
+
+    with pytest.raises(executar_robo_gui._CancelamentoSolicitado):
+        app._fazer_login_e_lancar(0, total_workers=1)
+
+    _drenar_fila(app)
+    assert "[PAROU]" not in app._linhas_worker[0]["label"]["text"]
+
+
+def test_orquestrar_cancelado_antes_do_1o_login_encerra_direto(app, monkeypatch):
+    """Cenário mais simples: a pessoa cancela antes de qualquer worker
+    logar - _orquestrar() precisa notar isso e ir direto pro
+    encerramento, sem tentar logar ninguém."""
+    _resetar(app, total_workers=2)
+    app._cancelado.set()
+
+    chamadas_encerrar = []
+    monkeypatch.setattr(executar_robo_gui, "_encerrar_worker", lambda p: chamadas_encerrar.append(p))
+    monkeypatch.setattr(executar_robo_gui, "_contar_linhas_planilha", lambda caminho: 5)
+    monkeypatch.setattr(executar_robo_gui, "_consolidar_planilha_final", lambda: None)
+    chamou_login = []
+    monkeypatch.setattr(app, "_login_worker_gui", lambda wid: chamou_login.append(wid))
+
+    app._orquestrar(2)
+    _drenar_fila(app)
+
+    assert not chamou_login
+    assert not chamadas_encerrar  # nenhum processo pra encerrar - nada foi lançado
+    assert app._execucao_concluida is True
+    assert "CANCELADO" in app._label_status_geral["text"]
+
+
+def test_orquestrar_cancelado_no_meio_do_laco_encerra_workers_ja_lancados(app, monkeypatch):
+    """Cenário real: worker 0 já logou e foi lançado; a pessoa cancela
+    antes do login do worker 1 começar - o worker 0 (já rodando de
+    verdade) precisa ser encerrado, e o worker 1 nunca chega a logar."""
+    _resetar(app, total_workers=2)
+
+    class _ProcessoFalso:
+        def poll(self):
+            return None  # ainda "rodando"
+
+    processo_worker_0 = _ProcessoFalso()
+
+    def _login_fake(wid):
+        if wid == 1:
+            # Simula o clique em "Cancelar" bem nesse momento - a
+            # _login_worker_gui() real detectaria a flag e levantaria
+            # esse mesmo sinal (ver docstring dela), então o dublê
+            # replica os 2 efeitos, não só a flag.
+            app._cancelado.set()
+            raise executar_robo_gui._CancelamentoSolicitado()
+
+    monkeypatch.setattr(app, "_login_worker_gui", _login_fake)
+    monkeypatch.setattr(executar_robo_gui, "_iniciar_worker", lambda wid, total: processo_worker_0)
+    chamadas_encerrar = []
+    monkeypatch.setattr(executar_robo_gui, "_encerrar_worker", lambda p: chamadas_encerrar.append(p))
+    monkeypatch.setattr(executar_robo_gui, "_contar_linhas_planilha", lambda caminho: 5)
+    monkeypatch.setattr(executar_robo_gui, "_consolidar_planilha_final", lambda: None)
+
+    app._orquestrar(2)
+    _drenar_fila(app)
+
+    assert app._processos.get(0) is processo_worker_0
+    assert 1 not in app._processos
+    assert chamadas_encerrar == [processo_worker_0]
+    assert "CANCELADO" in app._label_status_geral["text"]
+
+
+def test_orquestrar_cancelado_durante_polling_encerra_workers(app, monkeypatch):
+    """Todos os workers já lançados e "trabalhando" (poll() ainda None) -
+    o cancelamento precisa ser notado dentro do laço de acompanhamento
+    também, não só no laço de login."""
+    _resetar(app, total_workers=1)
+
+    class _ProcessoFalso:
+        def poll(self):
+            return None
+
+    processo = _ProcessoFalso()
+    monkeypatch.setattr(app, "_login_worker_gui", lambda wid: None)
+    monkeypatch.setattr(executar_robo_gui, "_iniciar_worker", lambda wid, total: processo)
+    monkeypatch.setattr(executar_robo_gui, "_status_legivel", lambda log_path: "50% concluído (5/10)")
+
+    def _sleep_e_cancela(segundos):
+        app._cancelado.set()
+
+    monkeypatch.setattr(executar_robo_gui.time, "sleep", _sleep_e_cancela)
+    chamadas_encerrar = []
+    monkeypatch.setattr(executar_robo_gui, "_encerrar_worker", lambda p: chamadas_encerrar.append(p))
+    monkeypatch.setattr(executar_robo_gui, "_contar_linhas_planilha", lambda caminho: 5)
+    monkeypatch.setattr(executar_robo_gui, "_consolidar_planilha_final", lambda: None)
+
+    app._orquestrar(1)
+    _drenar_fila(app)
+
+    assert chamadas_encerrar == [processo]
+    assert "CANCELADO" in app._label_status_geral["text"]

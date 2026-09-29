@@ -60,6 +60,7 @@ from executar_robo import (  # noqa: E402
     PORTAL_LOGIN_URL,
     _consolidar_planilha_final,
     _contar_linhas_planilha,
+    _encerrar_worker,
     _iniciar_worker,
     _status_legivel,
     config,
@@ -67,6 +68,16 @@ from executar_robo import (  # noqa: E402
 from relatorio_completude import calcular_completude  # noqa: E402
 
 _RE_PERCENTUAL = re.compile(r"^(\d+)% conclu")
+
+
+class _CancelamentoSolicitado(Exception):
+    """Sinal interno (nunca chega até a pessoa) - a pedido do usuário em
+    29/09/2026: "um botão que permita cancelar a varredura, caso seja
+    necessário parar de executar o programa". Levantada dentro de
+    `_login_worker_gui()` quando o cancelamento é detectado enquanto
+    espera o clique de "Já fiz login" - distingue "cancelado de
+    propósito" de uma falha de login de verdade (ver `_fazer_login_e_
+    lancar()`, que precisa tratar os 2 casos de formas diferentes)."""
 
 
 def _resumo_completude_legivel(resultado: dict) -> str:
@@ -196,6 +207,13 @@ class AppRobo(tk.Tk):
         self._reconectando: bool = False
         self._execucao_concluida: bool = False
         self._workers_parados: set[int] = set()
+
+        # Cancelamento (29/09/2026, pedido do usuário: "um botão que
+        # permita cancelar a varredura") - `threading.Event` porque é lido
+        # de VÁRIAS threads ao mesmo tempo (_orquestrar, _login_worker_gui,
+        # qualquer reconexão em andamento) - Event já é thread-safe por
+        # natureza, ao contrário de um bool simples.
+        self._cancelado: threading.Event = threading.Event()
 
         # ⚠️ Achado em 25/09/2026 (pedido do usuário, pensando numa 2ª
         # pessoa usando o robô no computador dela): se a pasta de destino
@@ -342,10 +360,21 @@ class AppRobo(tk.Tk):
         self._frame_exec = tk.Frame(self, padx=20, pady=20)
         self._frame_exec.pack(fill="both", expand=True)
 
-        self._label_status_geral = tk.Label(
-            self._frame_exec, text="Preparando...", font=("Segoe UI", 10, "bold"), wraplength=500, justify="left"
+        frame_topo = tk.Frame(self._frame_exec)
+        frame_topo.pack(fill="x", pady=(0, 10))
+
+        # Cancelamento (29/09/2026) - sempre disponível nesta tela, do
+        # 1º login até a conclusão/erro/cancelamento (aí é desabilitado -
+        # ver _tratar_mensagem, não tem mais o que cancelar).
+        self._botao_cancelar = tk.Button(
+            frame_topo, text="Cancelar", command=self._ao_clicar_cancelar
         )
-        self._label_status_geral.pack(anchor="w", pady=(0, 10))
+        self._botao_cancelar.pack(side="right")
+
+        self._label_status_geral = tk.Label(
+            frame_topo, text="Preparando...", font=("Segoe UI", 10, "bold"), wraplength=440, justify="left"
+        )
+        self._label_status_geral.pack(side="left", fill="x", expand=True)
 
         self._botao_login = tk.Button(
             self._frame_exec,
@@ -397,14 +426,49 @@ class AppRobo(tk.Tk):
             self._botao_login.config(state="disabled")
             self._evento_login.set()
 
+    def _ao_clicar_cancelar(self) -> None:
+        """Pedido do usuário em 29/09/2026: "algo que permita cancelar a
+        varredura, caso seja necessário parar de executar o programa".
+        Só prepara o sinal de cancelamento aqui (thread principal) - quem
+        realmente para os workers/threads de fundo é _orquestrar()
+        (ver `_finalizar_cancelamento()`), que está rodando em paralelo e
+        confere `self._cancelado` periodicamente."""
+        if self._execucao_concluida or self._cancelado.is_set():
+            return
+        confirmou = messagebox.askyesno(
+            "Robô ANTT",
+            "Tem certeza que quer cancelar?\n\n"
+            "Os workers que já estão trabalhando serão parados agora. Nada do que já foi "
+            "processado se perde - é só rodar este programa de novo depois pra continuar de "
+            "onde parou.",
+        )
+        if not confirmou:
+            return
+
+        self._botao_cancelar.config(state="disabled")
+        self._label_status_geral.config(text="Cancelando - parando os workers...")
+        self._cancelado.set()
+        # Se tiver um login pendente agora (esperando "Já fiz login"),
+        # libera o wait() na hora - sem isso, _login_worker_gui() só
+        # notaria o cancelamento na próxima checagem (até 0,5s depois,
+        # imperceptível, mas por que esperar).
+        if self._evento_login is not None:
+            self._botao_login.config(state="disabled")
+            self._evento_login.set()
+
     # ------------------------------------------------------------------
     # Thread de fundo - nunca toca em widget diretamente, só posta na fila
     # ------------------------------------------------------------------
     def _orquestrar(self, total_workers: int) -> None:
         try:
             for worker_id in range(total_workers):
+                if self._cancelado.is_set():
+                    return self._finalizar_cancelamento()
                 self._fila.put(("status_geral", f"Login {worker_id + 1} de {total_workers} - abrindo o portal..."))
-                self._fazer_login_e_lancar(worker_id, total_workers)
+                try:
+                    self._fazer_login_e_lancar(worker_id, total_workers)
+                except _CancelamentoSolicitado:
+                    return self._finalizar_cancelamento()
 
             self._fila.put(
                 (
@@ -420,6 +484,8 @@ class AppRobo(tk.Tk):
             # vez no futuro.
             workers_parados_avisados: set[int] = set()
             while True:
+                if self._cancelado.is_set():
+                    return self._finalizar_cancelamento()
                 for worker_id in range(total_workers):
                     processo = self._processos.get(worker_id)
                     if processo is None:
@@ -475,10 +541,43 @@ class AppRobo(tk.Tk):
         except Exception as e:  # nunca deixa a thread de fundo morrer em silêncio
             self._fila.put(("erro", str(e)))
 
+    def _finalizar_cancelamento(self) -> None:
+        """Chamada por _orquestrar() assim que ela nota `self._cancelado`
+        (29/09/2026, ver `_ao_clicar_cancelar()`) - encerra os workers que
+        ainda estiverem rodando de verdade (árvore de processo inteira,
+        não só o pai - ver `_encerrar_worker()`) e tenta consolidar/
+        relatar o que já tinha sido processado até agora, pra não
+        esconder o progresso real só porque a execução foi interrompida
+        de propósito. Best-effort: se a consolidação falhar por qualquer
+        motivo (ex.: sessão que também caiu no meio), ainda assim informa
+        o cancelamento de forma clara, só sem o número exato."""
+        self._fila.put(("status_geral", "Cancelando - encerrando os workers que ainda estão rodando..."))
+        for processo in self._processos.values():
+            _encerrar_worker(processo)
+
+        total_depois: int | None = None
+        novas: int | None = None
+        try:
+            total_antes = _contar_linhas_planilha(config.PLANILHA_PATH)
+            _consolidar_planilha_final()
+            total_depois = _contar_linhas_planilha(config.PLANILHA_PATH)
+            novas = total_depois - total_antes
+        except Exception:
+            pass  # best-effort - o cancelamento em si não pode falhar por causa disso
+
+        self._fila.put(("cancelado", str(config.PLANILHA_PATH), total_depois, novas))
+
     def _login_worker_gui(self, worker_id: int) -> None:
         """Mesma mecânica de executar_robo._login_worker(), trocando o
         `input()` bloqueante por um `threading.Event` que o botão "Já fiz
-        login" da tela libera."""
+        login" da tela libera.
+
+        ⚠️ Cancelamento (29/09/2026): em vez de `evento.wait()` bloquear
+        indefinidamente, espera em fatias curtas (0,5s) checando
+        `self._cancelado` entre elas - se a pessoa cancelar enquanto essa
+        janela do navegador está aberta esperando o login, fecha o
+        navegador e levanta `_CancelamentoSolicitado` (em vez de tentar
+        salvar uma sessão que não existe de verdade)."""
         arquivo_sessao = config.sessao_worker(worker_id)
         evento = threading.Event()
         self._evento_login = evento
@@ -490,11 +589,17 @@ class AppRobo(tk.Tk):
             page.goto(PORTAL_LOGIN_URL)
 
             self._fila.put(("aguardando_login", worker_id))
-            evento.wait()
+            while not self._cancelado.is_set():
+                if evento.wait(timeout=0.5):
+                    break
+            self._evento_login = None
+
+            if self._cancelado.is_set():
+                browser.close()
+                raise _CancelamentoSolicitado()
 
             context.storage_state(path=arquivo_sessao)
             browser.close()
-        self._evento_login = None
 
     def _fazer_login_e_lancar(self, worker_id: int, total_workers: int) -> bool:
         """Faz o login manual de 1 worker e lança o processo dele - usado
@@ -514,9 +619,15 @@ class AppRobo(tk.Tk):
         propagar a exceção) em vez de derrubar quem chamou - marca esse
         worker como "[PAROU]" (habilita o "Relogar" dele, mesmo mecanismo
         já existente) e deixa os outros workers/o resto da orquestração
-        seguirem intactos."""
+        seguirem intactos.
+
+        `_CancelamentoSolicitado` é um caso à parte - não é uma falha de
+        login de verdade, então PROPAGA pra quem chamou (o laço de login
+        de `_orquestrar()`, ou `_reconectar_worker()`) tratar."""
         try:
             self._login_worker_gui(worker_id)
+        except _CancelamentoSolicitado:
+            raise
         except Exception as e:
             self._fila.put(
                 ("worker_status", worker_id, f"[PAROU] falha no login (clique em Relogar pra tentar de novo) - {e}")
@@ -563,6 +674,12 @@ class AppRobo(tk.Tk):
             sucesso = self._fazer_login_e_lancar(worker_id, total_workers)
             if sucesso:
                 self._fila.put(("status_geral", "Os workers estão trabalhando em segundo plano."))
+        except _CancelamentoSolicitado:
+            # Cancelamento geral em andamento (_orquestrar() já está
+            # cuidando de encerrar tudo, ver _finalizar_cancelamento()) -
+            # não é uma falha desta reconexão específica, não precisa de
+            # nenhum aviso à parte.
+            pass
         except Exception as e:
             # _fazer_login_e_lancar() já trata falha de LOGIN internamente
             # (nunca propaga) - isto aqui cobre qualquer outra falha
@@ -631,6 +748,7 @@ class AppRobo(tk.Tk):
                 mensagem[4],
             )
             self._execucao_concluida = True
+            self._botao_cancelar.config(state="disabled")
             for linha in self._linhas_worker.values():
                 linha["botao_relogar"].config(state="disabled")
             self._label_status_geral.config(text="CONCLUÍDO")
@@ -643,8 +761,32 @@ class AppRobo(tk.Tk):
                     "é só rodar este programa de novo - ele continua de onde parou, sem perder nada."
                 )
             )
+        elif tipo == "cancelado":
+            # 29/09/2026, pedido do usuário: "um botão que permita
+            # cancelar a varredura, caso seja necessário parar de
+            # executar o programa" - ver _ao_clicar_cancelar()/
+            # _finalizar_cancelamento().
+            caminho_planilha, total, novas = mensagem[1], mensagem[2], mensagem[3]
+            self._execucao_concluida = True
+            self._botao_cancelar.config(state="disabled")
+            for linha in self._linhas_worker.values():
+                linha["botao_relogar"].config(state="disabled")
+            self._label_status_geral.config(text="CANCELADO")
+            if total is not None:
+                resumo_totais = f"{total} multa(s) verificada(s) no total, {novas} nova(s) até o momento do cancelamento."
+            else:
+                resumo_totais = "(não foi possível confirmar os totais agora - tente de novo mais tarde.)"
+            self._label_resultado_final.config(
+                text=(
+                    f"Planilha final: {caminho_planilha}\n\n"
+                    f"{resumo_totais}\n\n"
+                    "A varredura foi cancelada a pedido - nada do que já tinha sido processado se "
+                    "perdeu. É só rodar este programa de novo pra continuar de onde parou."
+                )
+            )
         elif tipo == "erro":
             self._execucao_concluida = True
+            self._botao_cancelar.config(state="disabled")
             for linha in self._linhas_worker.values():
                 linha["botao_relogar"].config(state="disabled")
             self._label_status_geral.config(text=f"[ATENÇÃO] Ocorreu um erro: {mensagem[1]}", fg="red")

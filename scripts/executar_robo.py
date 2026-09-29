@@ -124,6 +124,31 @@ def _iniciar_worker(worker_id: int, total_workers: int) -> subprocess.Popen:
     return processo
 
 
+def _encerrar_worker(processo: subprocess.Popen) -> None:
+    """Encerra um worker à força (botão "Cancelar" da GUI, 29/09/2026,
+    pedido do usuário: "algo que permita cancelar a varredura, caso seja
+    necessário parar de executar o programa").
+
+    ⚠️ `processo.terminate()` sozinho NÃO basta - cada worker é o próprio
+    interpretador Python rodando `worker_cli.py`, que por sua vez abre o
+    navegador (Chromium) via Playwright como processo(s) FILHO(S) - matar
+    só o processo pai deixaria esses filhos órfãos rodando pra sempre (o
+    mesmo problema já documentado ao encerrar workers manualmente, ver
+    CLAUDE.md - "taskkill /T /F" pra matar a árvore inteira). Usa
+    `taskkill` com `/T` (árvore) e `/F` (força) - mesma ferramenta já
+    usada em `io_seguro._processo_ainda_rodando()`.
+
+    Seguro de chamar mesmo se o processo já tiver terminado sozinho
+    (`taskkill` só reporta "processo não encontrado", não é erro fatal
+    pra quem chama) - `capture_output` engole a saída, não precisa dela."""
+    if processo.poll() is not None:
+        return  # já terminou sozinho - nada a fazer
+    subprocess.run(
+        ["taskkill", "/PID", str(processo.pid), "/T", "/F"],
+        capture_output=True,
+    )
+
+
 # Casa com o formato exato de "[Progresso]" gravado por orquestrador.py -
 # só usa a parte sem acento (mais robusta contra mojibake em consoles que
 # não são UTF-8, achado repetido várias vezes ao longo do projeto - ver

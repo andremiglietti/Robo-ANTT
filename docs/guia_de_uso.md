@@ -69,6 +69,12 @@ frase em português explicando onde cada um está. Isso pode levar
 vez — pode deixar a janela aberta e fazer outra coisa, voltando de vez
 em quando só para conferir.
 
+Se precisar parar antes de terminar (por qualquer motivo), há um botão
+**"Cancelar"** no topo da tela, ao lado do texto de andamento. Ele pede
+uma confirmação e, depois disso, encerra os workers e mostra o que já
+tinha sido processado até aquele momento — nada se perde, é só rodar o
+programa de novo depois para continuar de onde parou.
+
 ### 5. Quando terminar
 
 A tela mostra **"CONCLUÍDO"**, o caminho da planilha final, quantas multas
@@ -127,6 +133,13 @@ Não é recomendado — melhor deixar rodando até terminar, ou fechar o
 programa direito antes de desligar. Mas se precisar desligar mesmo
 assim, é seguro: nada fica corrompido, o pior caso é ter que refazer um
 pouco de trabalho na próxima vez.
+
+**Como paro a varredura antes de terminar, se precisar?**
+Use o botão "Cancelar" no topo da tela (ver "Acompanhar o andamento"
+acima) em vez de simplesmente fechar a janela — ele encerra os workers
+de forma organizada e ainda mostra o que já tinha sido processado até
+aquele momento. Mas mesmo fechando a janela direto (sem clicar em
+"Cancelar"), nada se perde de qualquer forma.
 
 **Quantos workers eu devo usar?**
 5 é o recomendado (bom equilíbrio entre velocidade e quantidade de
