@@ -584,3 +584,19 @@ C:\Users\a847468\OneDrive - Yara International ASA\Dados ANTT\
 - `sessao_antt.json` (cookies de sessão ativa) — protegido no `.gitignore` desde 14/09/2026.
 - PDFs de autos (`*.pdf`) — contêm CPF de motoristas, CNPJ, endereços; protegidos no `.gitignore` desde 15/09/2026.
 - `prints/` e `codigos_site/` — contêm o **nome completo e CPF do representante legal** em texto puro (ex.: telas de login/home) e o CPF também aparece dentro do HTML capturado; protegidos no `.gitignore` em 15/09/2026.
+
+## Documentação de governança (criada em 29/09/2026, verificada/atualizada em 05/10/2026)
+
+A pedido do usuário ("documentação extremamente detalhada... para que as próximas pessoas que
+estejam no meu lugar entendam todo o projeto"), foi criada uma documentação de governança
+separada deste `CLAUDE.md` — não substitui este arquivo (que continua sendo o diário de
+engenharia completo, cronológico, com toda evidência), mas serve como um mapa estruturado por
+tema (arquitetura, módulos, modelo de dados, riscos, runbook) para quem for dar continuidade ao
+projeto sem precisar ler o histórico inteiro primeiro. Existe em 2 formatos com o mesmo conteúdo:
+
+- **Artifact HTML** (Mermaid para os fluxogramas): [https://claude.ai/artifact/QTqf8Bk6MGDLYqy6XwuLkQ](https://claude.ai/artifact/QTqf8Bk6MGDLYqy6XwuLkQ) — 22 seções, com o design system da conta (Yara Fresh).
+- **`docs/Robo_ANTT_Documentacao_Tecnica.docx`** — mesmo conteúdo em Word (pedido do usuário: "consegue fazer isso em um formato word?"), gerado com `python-docx` (ambiente sem Node/npm/pandoc/LibreOffice disponível pra ferramenta padrão da skill de documentação) — fluxogramas representados como sequências numeradas de passos, já que o Word não renderiza Mermaid.
+
+🔴 **Achado em 05/10/2026, a pedido do usuário ("faça uma verificação da última documentação... e atualize-a"):** os dois formatos estavam desatualizados em relação a 1 mudança real do código — o refinamento de 29/09/2026 que faz a retentativa direcionada pular a combinação inteira já na 1ª rodada quando todas as falhas pendentes dela já são "provavelmente permanentes" (não só a partir da 2ª rodada, como a documentação ainda descrevia). Causa: esse ajuste de código foi feito DEPOIS que a documentação já tinha sido escrita e publicada, dentro da mesma sessão. **Corrigido nos 2 formatos:** seção 11 (Garantia de completude) ganhou um callout explicando o refinamento, e a tabela da seção 18 (Histórico de decisões) ganhou a linha correspondente — mesmo texto nos dois lugares, datas de "última atualização" também atualizadas pra 05/10/2026.
+
+⚠️ **Nota operacional pra próxima atualização:** o arquivo-fonte do HTML (`documentacao_robo_antt.html`) e o script gerador do Word (`gerar_docx_antt.py`) vivem na pasta de scratchpad da sessão (`AppData\Local\Temp\claude\...\scratchpad\` e `AppData\Local\Temp\`), não no repositório — são artefatos de ferramenta, não arquivos versionados. Se a pasta de scratchpad for limpa entre sessões, a atualização de uma mudança futura precisará reconstituir esses arquivos a partir do conteúdo já publicado (via leitura do artifact/docx existentes) em vez de editar um fonte já pronto. O ambiente Python isolado usado para gerar o `.docx` (`AppData\Local\Temp\docxenv`, com `python-docx`/`lxml` instalados) também é temporário pela mesma razão — se não existir mais, repetir a instalação (`pip install python-docx`) numa venv nova antes de rodar o script gerador.
